@@ -1,0 +1,7 @@
+dataset_type: "touching"
+train_val_directions: ['E', 'N', 'S', 'W']
+test_directions: ['C']
+dataset_folder: "/media/mbed/internal/backup/haptr"
+dataset_file: "touching.mat"
+signal_length: 160
+signal_start: 0
