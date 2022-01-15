@@ -4,9 +4,8 @@ from torch.utils.data import Dataset
 
 
 class TouchingDataset(Dataset):
-    def __init__(self, path, directions, signal_start=90, signal_length=90, standarize=True):
+    def __init__(self, path, directions, classes, signal_start=90, signal_length=90, standarize=True):
         pickled = loadmat(path)
-
         self.signals, self.labels = list(), list()
         for key in pickled.keys():
             for direction in directions:
@@ -14,7 +13,7 @@ class TouchingDataset(Dataset):
                     if 'steps_' in key:
                         self.signals.append(pickled[key][:, signal_start:signal_start + signal_length, :])
                     elif 'labels_' in key:
-                        self.labels.append(pickled[key][0])
+                        self.labels.append(pickled[key][0] - 1)  # classes are numbered from 1 to 11
                 else:
                     continue
 
@@ -24,6 +23,12 @@ class TouchingDataset(Dataset):
             assert self.labels.shape[0] == self.signals.shape[0]
         else:
             raise ValueError("Empty dataset.")
+
+        # pick only chosen classes if specified
+        if type(classes) is list and len(classes) > 0:
+            idx = np.argwhere([self.labels == c for c in classes])
+            self.labels = self.labels[idx[:, -1]]
+            self.signals = self.signals[idx[:, -1]]
 
         self.num_classes = 11
         self.mean, self.std = np.mean(self.signals, (0, 1), keepdims=True), np.std(self.signals, (0, 1), keepdims=True)
