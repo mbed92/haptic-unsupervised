@@ -10,10 +10,24 @@ from torchsummary import summary
 
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from submodules.haptic_transformer.experiments.transformer.transformer_train import accuracy, batch_hits, query, train
+from submodules.haptic_transformer.experiments.transformer.transformer_train import accuracy, batch_hits
 from submodules.haptic_transformer.models import HAPTR
 
 torch.manual_seed(42)
+
+
+def train(x, y_true, model, criterion, optimizer):
+    optimizer.zero_grad()
+    y_hat, loss, latent_vector = query(x, y_true, model, criterion)
+    loss.backward()
+    optimizer.step()
+    return y_hat, loss, latent_vector
+
+
+def query(x, y_true, model, criterion):
+    y_hat, latent_vector = model(x)
+    loss = criterion(y_hat, y_true)
+    return y_hat, loss, latent_vector
 
 
 def main(args):
@@ -59,7 +73,7 @@ def main(args):
             # train loop
             for step, data in enumerate(train_dataloader):
                 batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
-                out, loss = train(batch_data, batch_labels, model, criterion, optimizer)
+                out, loss, latent_vector = train(batch_data, batch_labels, model, criterion, optimizer)
                 mean_loss += loss.item()
                 correct += batch_hits(out, batch_labels)
 
@@ -74,14 +88,23 @@ def main(args):
             model.train(False)
 
             # run test loop
+            y_pred, y_true = [], []
             with torch.no_grad():
                 for step, data in enumerate(test_dataloader):
-                    batch_data, batch_labels = utils_haptr.dataset.load_samples_to_device(data, device)
-                    out, loss = query(batch_data, batch_labels, model, criterion)
+                    batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
+                    out, loss, latent_vector = query(batch_data, batch_labels, model, criterion)
                     mean_loss += loss.item()
+                    correct += batch_hits(out, batch_labels)
+
+                    # update statistics
+                    _, predicted = torch.max(out.data, 1)
+                    y_pred.extend(predicted.data.cpu().numpy())
+                    y_true.extend(batch_labels.data.cpu().numpy())
 
             # update tensorboard
+            epoch_accuracy = accuracy(correct, len(test_ds))
             writer.add_scalar('loss/test', mean_loss / len(test_ds), epoch)
+            writer.add_scalar('accuracy/test', epoch_accuracy, epoch)
 
         utils_haptr.log.save_statistics(y_true_val, y_pred_val, model, os.path.join(log_dir, 'val'), data_shape)
         utils_haptr.log.save_statistics(y_true_test, y_pred_test, model, os.path.join(log_dir, 'test'), data_shape)
