@@ -25,9 +25,9 @@ def train(x, y_true, model, criterion, optimizer):
 
 
 def query(x, y_true, model, criterion):
-    y_hat, latent_vector = model(x)
+    y_hat, data_dict = model(x)
     loss = criterion(y_hat, y_true)
-    return y_hat, loss, latent_vector
+    return y_hat, loss, data_dict["lv"]
 
 
 def main(args):
@@ -39,7 +39,7 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, _, test_ds = utils.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
@@ -61,14 +61,12 @@ def main(args):
     criterion = nn.CrossEntropyLoss(weight=w)
 
     # start
-    y_pred_val, y_true_val = [], []
     y_pred_test, y_true_test = [], []
-
     with SummaryWriter(log_dir=log_dir) as writer:
-        # train/validation
         for epoch in range(args.epochs):
             mean_loss, correct = 0.0, 0
             model.train(True)
+            embeddings, labels = [], []
 
             # train loop
             for step, data in enumerate(train_dataloader):
@@ -76,37 +74,29 @@ def main(args):
                 out, loss, latent_vector = train(batch_data, batch_labels, model, criterion, optimizer)
                 mean_loss += loss.item()
                 correct += batch_hits(out, batch_labels)
+                embeddings.extend(latent_vector)
+                labels.extend(batch_labels)
 
-            # write to the tensorboard
             writer.add_scalar('loss/train', mean_loss / len(train_ds), epoch)
             writer.add_scalar('accuracy/train', accuracy(correct, len(train_ds)), epoch)
             writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], epoch)
             scheduler.step()
 
-            # test clustering
-            mean_loss, correct = 0.0, 0
+            # test
             model.train(False)
-
-            # run test loop
-            y_pred, y_true = [], []
             with torch.no_grad():
                 for step, data in enumerate(test_dataloader):
                     batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
-                    out, loss, latent_vector = query(batch_data, batch_labels, model, criterion)
-                    mean_loss += loss.item()
-                    correct += batch_hits(out, batch_labels)
-
-                    # update statistics
-                    _, predicted = torch.max(out.data, 1)
-                    y_pred.extend(predicted.data.cpu().numpy())
-                    y_true.extend(batch_labels.data.cpu().numpy())
+                    _, _, latent_vector = query(batch_data, batch_labels, model, criterion)
+                    embeddings.extend(latent_vector)
+                    labels.extend(batch_labels)
 
             # update tensorboard
-            epoch_accuracy = accuracy(correct, len(test_ds))
-            writer.add_scalar('loss/test', mean_loss / len(test_ds), epoch)
-            writer.add_scalar('accuracy/test', epoch_accuracy, epoch)
+            if epoch % args.projector_interval == 0:
+                embeddings = torch.stack(embeddings, 0).detach().cpu().numpy()
+                labels = torch.stack(labels, 0).detach().cpu().numpy()
+                writer.add_embedding(embeddings, labels, global_step=epoch)
 
-        utils_haptr.log.save_statistics(y_true_val, y_pred_val, model, os.path.join(log_dir, 'val'), data_shape)
         utils_haptr.log.save_statistics(y_true_test, y_pred_test, model, os.path.join(log_dir, 'test'), data_shape)
         writer.flush()
 
@@ -117,8 +107,8 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/touching_haptr.yaml")
-    parser.add_argument('--epochs', type=int, default=2000)
+                        default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
+    parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-classes', type=int, default=8)
     parser.add_argument('--projection-dim', type=int, default=16)
@@ -132,6 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--model-type', type=str, default='haptr')
+    parser.add_argument('--projector-interval', type=int, default=100)
 
     args, _ = parser.parse_known_args()
     main(args)
