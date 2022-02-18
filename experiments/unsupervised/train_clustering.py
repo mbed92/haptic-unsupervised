@@ -59,32 +59,39 @@ def main(args):
     # train the clust_model model
     with SummaryWriter(log_dir=log_dir) as writer:
         for epoch in range(args.epochs):
-
+            mean_recon_loss, mean_cluster_loss, assignments = list(), list(), list()
             clust_model.train(True)
             for step, data in enumerate(train_dataloader):
                 batch_data, batch_labels = utils_haptr.dataset.load_samples_to_device(data, device)
                 p_train = clust_model.predict_soft_assignments(batch_data)
                 y_hat, recon_loss, cluster_loss = train(clust_model, batch_data, p_train, optimizer)
-                assignments = torch.argmax(y_hat['assignments'], -1)
-                writer.add_scalar('loss/train/recon_loss', recon_loss.item(), epoch)
-                writer.add_scalar('loss/train/cluster_loss', cluster_loss.item(), epoch)
-                writer.add_scalar('loss/train/acc', utils.clustering.clustering_accuracy(batch_labels, assignments),
-                                  epoch)
-                scheduler.step()
+                mean_recon_loss.append(recon_loss.item())
+                mean_cluster_loss.append(cluster_loss.item())
+                assignments.append(torch.argmax(y_hat['assignments'], -1))
 
-            mean_loss = list()
+            assignments = torch.cat(assignments, 0)
+            writer.add_scalar('loss/train/recon_loss', sum(mean_recon_loss) / len(mean_recon_loss), epoch)
+            writer.add_scalar('loss/train/cluster_loss', sum(mean_cluster_loss) / len(mean_cluster_loss), epoch)
+            writer.add_scalar('loss/train/acc', utils.clustering.clustering_accuracy(batch_labels, assignments), epoch)
+            scheduler.step()
+
+            mean_recon_loss, mean_cluster_loss, assignments = list(), list(), list()
             clust_model.train(False)
             with torch.no_grad():
                 for step, data in enumerate(test_dataloader):
                     batch_data, batch_labels = utils_haptr.dataset.load_samples_to_device(data, device)
                     p_test = clust_model.predict_soft_assignments(batch_data)
                     y_hat, recon_loss, cluster_loss = query(clust_model, batch_data, p_test)
-                    assignments = torch.argmax(y_hat['assignments'], -1)
-                    writer.add_scalar('loss/test/recon_loss', recon_loss.item(), epoch)
-                    writer.add_scalar('loss/test/cluster_loss', cluster_loss.item(), epoch)
-                    writer.add_scalar('loss/test/acc', utils.clustering.clustering_accuracy(batch_labels, assignments),
-                                      epoch)
-            writer.flush()
+                    mean_recon_loss.append(recon_loss.item())
+                    mean_cluster_loss.append(cluster_loss.item())
+                    assignments.append(torch.argmax(y_hat['assignments'], -1))
+
+                assignments = torch.cat(assignments, 0)
+                writer.add_scalar('loss/test/recon_loss', sum(mean_recon_loss) / len(mean_recon_loss), epoch)
+                writer.add_scalar('loss/test/cluster_loss', sum(mean_cluster_loss) / len(mean_cluster_loss), epoch)
+                writer.add_scalar('loss/test/acc', utils.clustering.clustering_accuracy(batch_labels, assignments),
+                                  epoch)
+                writer.flush()
 
         # save trained clust_model model
         torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
@@ -126,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb18_20-46-39_mbed/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb18_21-44-44_mbed/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)

@@ -53,16 +53,17 @@ def main(args):
 
     for i, sae in enumerate([autoencoder.sae1, autoencoder.sae2, autoencoder.sae3, autoencoder.sae4]):
         sae_log_dir = os.path.join(log_dir, f'sae{i}')
+        sae.set_dropout(args.dropout)
 
         with SummaryWriter(log_dir=sae_log_dir) as writer:
             optimizer = torch.optim.AdamW(sae.parameters(), lr=args.lr, weight_decay=args.weight_decay)
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs_sae,
                                                                    eta_min=args.eta_min)
             criterion = nn.MSELoss()
-            sae.set_dropout(args.dropout)
 
             for epoch in range(args.epochs_sae):
                 # Train SAE first
+                mean_loss = list()
                 sae.train(True)
                 for step, data in enumerate(train_dataloader):
                     batch_data = query_embedding(data, device, sae.input_size, bool(i == 0))
@@ -71,18 +72,21 @@ def main(args):
                     loss = criterion(y_hat, batch_data)
                     loss.backward(retain_graph=True)
                     optimizer.step()
-                    scheduler.step()
-                    writer.add_scalar(f'loss/train/SAE{i}', loss.item(), epoch)
+                    mean_loss.append(loss.item())
+
+                writer.add_scalar(f'loss/train/SAE{i}', sum(mean_loss) / len(mean_loss), epoch)
+                writer.add_scalar(f'lr/train/SAE{i}', optimizer.param_groups[0]['lr'], epoch)
+                scheduler.step()
 
                 # Test the SAE
                 mean_loss = list()
-                sae.set_dropout(0.0)  # reset dropout after pretraining
                 sae.train(False)
                 with torch.no_grad():
                     for step, data in enumerate(test_dataloader):
                         batch_data = query_embedding(data, device, sae.input_size, bool(i == 0))
                         y_hat = sae(batch_data)
                         mean_loss.append(criterion(y_hat, batch_data).item())
+
                 writer.add_scalar(f'loss/test/SAE{i}', sum(mean_loss) / len(mean_loss), epoch)
                 writer.flush()
 
@@ -101,16 +105,19 @@ def main(args):
         criterion = nn.MSELoss()
 
         for epoch in range(args.epochs_autoencoder):
+            mean_loss = list()
             autoencoder.train(True)
             for step, data in enumerate(main_train_dataloader):
                 batch_data = query_embedding(data, device, flatten_data_shape, True)
                 optimizer.zero_grad()
                 y_hat = autoencoder(batch_data)
                 loss = criterion(y_hat, batch_data)
-                loss.backward(retain_graph=True)
+                loss.backward()
                 optimizer.step()
-                scheduler.step()
-                writer.add_scalar('loss/train/AE', loss.item(), epoch)
+                mean_loss.append(loss.item())
+
+            writer.add_scalar('loss/train/AE', sum(mean_loss) / len(mean_loss), epoch)
+            scheduler.step()
 
             mean_loss = list()
             autoencoder.train(False)
@@ -118,12 +125,14 @@ def main(args):
                 for step, data in enumerate(main_test_dataloader):
                     batch_data = query_embedding(data, device, flatten_data_shape, True)
                     y_hat = autoencoder(batch_data)
-                    mean_loss.append(criterion(y_hat, batch_data).item())
+                    loss = criterion(y_hat, batch_data)
+                    mean_loss.append(loss.item())
+
             writer.add_scalar('loss/test/AE', sum(mean_loss) / len(mean_loss), epoch)
             writer.flush()
 
-        # save trained autoencoder
-        torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+    # save the trained autoencoder
+    torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
 
     # verify the unsupervised classification accuracy
     x_train = torch.cat([y[0] for y in main_train_dataloader], 0).to(device).type(torch.float32)
@@ -152,8 +161,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=1000)
-    parser.add_argument('--epochs-autoencoder', type=int, default=1000)
+    parser.add_argument('--epochs-sae', type=int, default=300)
+    parser.add_argument('--epochs-autoencoder', type=int, default=200)
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-classes', type=int, default=8)
     parser.add_argument('--dropout', type=float, default=.2)
