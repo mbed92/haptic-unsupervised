@@ -1,22 +1,25 @@
 import os
 
-import numpy as np
 import torch
 from scipy.optimize import linear_sum_assignment
 from torch.utils.tensorboard import SummaryWriter
 
 
 def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
-    if type(y_true) is np.ndarray:
-        y_true = torch.from_numpy(y_true)
-    if type(y_pred) is np.ndarray:
-        y_pred = torch.from_numpy(y_pred)
-
     y_true, y_pred = y_true.int(), y_pred.int()
     total = y_pred.shape[0]
-    m = max(int(torch.max(y_pred).item()) + 1, int(torch.max(y_true).item()))
-    indices = torch.stack([torch.arange(total), y_pred, y_true], 1).type(torch.int64)
-    data = torch.zeros([total, m, m], dtype=torch.float32)
+    sample_idx = torch.arange(total).to(y_true.device)
+    indices = torch.stack([sample_idx, y_pred, y_true], 1).type(torch.int64)
+
+    # add 1 when classes are ordered from 0
+    pred_idx = int(torch.max(y_pred).item())
+    true_idx = int(torch.max(y_true).item())
+    if int(torch.min(y_pred).item()) == 0:
+        pred_idx += 1
+    if int(torch.min(y_true).item()) == 0:
+        true_idx += 1
+
+    data = torch.zeros([total, pred_idx, true_idx], dtype=torch.float32)
     indices_by_columns = [indices[:, i] for i in range(indices.shape[-1])]
     data[indices_by_columns] = 1.
     data = data.sum(0)

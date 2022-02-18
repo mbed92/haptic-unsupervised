@@ -34,7 +34,8 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = utils_haptr.dataset.load_dataset(config)
+    train_ds += val_ds
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     flatten_data_shape = train_ds.signal_length * train_ds.mean.shape[-1]
     main_train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
@@ -125,19 +126,19 @@ def main(args):
         torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
 
     # verify the unsupervised classification accuracy
-    emb_train = torch.cat(
-        [autoencoder.encoder(query_embedding(x_train, device, flatten_data_shape, True))
-         for x_train in main_train_dataloader], 0)
-    y_train = torch.cat([y[1] for y in main_train_dataloader], 0)
+    x_train = torch.cat([y[0] for y in main_train_dataloader], 0).to(device).type(torch.float32)
+    y_train = torch.cat([y[1] for y in main_train_dataloader], 0).to(device).type(torch.float32)
+    emb_train = autoencoder.encoder(x_train).to(device).type(torch.float32)
 
-    emb_test = torch.cat(
-        [autoencoder.encoder(query_embedding(x_test, device, flatten_data_shape, True))
-         for x_test in main_test_dataloader], 0)
-    y_test = torch.cat([y[1] for y in main_test_dataloader], 0)
+    x_test = torch.cat([y[0] for y in main_test_dataloader], 0).to(device).type(torch.float32)
+    y_test = torch.cat([y[1] for y in main_test_dataloader], 0).to(device).type(torch.float32)
+    emb_test = autoencoder.encoder(x_test).to(device).type(torch.float32)
 
     kmeans = KMeans(n_clusters=train_ds.num_classes, n_init=20)
     pred_train = kmeans.fit_predict(emb_train.cpu().detach().numpy())
+    pred_train = torch.Tensor(pred_train).to(device)
     pred_test = kmeans.predict(emb_test.cpu().detach().numpy())
+    pred_test = torch.Tensor(pred_test).to(device)
 
     print('===================')
     print('| KMeans train accuracy:', utils.clustering.clustering_accuracy(y_train, pred_train).numpy(),
@@ -150,13 +151,13 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=2000)
-    parser.add_argument('--epochs-autoencoder', type=int, default=5000)
+                        default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
+    parser.add_argument('--epochs-sae', type=int, default=1000)
+    parser.add_argument('--epochs-autoencoder', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--num-classes', type=int, default=8)
-    parser.add_argument('--dropout', type=float, default=.1)
-    parser.add_argument('--embed_size', type=int, default=32)
+    parser.add_argument('--dropout', type=float, default=.2)
+    parser.add_argument('--embed_size', type=int, default=16)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--gamma', type=float, default=0.999)
     parser.add_argument('--weight-decay', type=float, default=1e-3)
