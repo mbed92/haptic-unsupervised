@@ -19,6 +19,8 @@ class SAE(nn.Module):
         )
 
         self.decoder_drop = nn.Dropout(dropout)
+        self.input_size = in_size
+        self.embedding_size = out_size
 
     def forward(self, inputs):
         x = self.encoder(self.encoder_drop(inputs))
@@ -59,18 +61,19 @@ class TimeSeriesAutoencoder(nn.Module):
             self.sae4.decoder,
             self.sae3.decoder,
             self.sae2.decoder,
-            self.sae1.decoder,
-            Reshape(self._input_data_size)
+            self.sae1.decoder
+            # Reshape(self._input_data_size)
         )
 
-    def call(self, inputs):
+    def forward(self, inputs):
         return self.decoder(self.encoder(inputs))
 
 
 class Reshape(nn.Module):
-    def __init__(self, *args):
+    def __init__(self, shape):
         super(Reshape, self).__init__()
-        self.shape = args
+        self.shape = shape
 
     def forward(self, x):
-        return x.view(self.shape)
+        shape = -1, self.shape
+        return x.view(shape)
