@@ -1,4 +1,5 @@
 import argparse
+import io
 import os
 from copy import deepcopy
 
@@ -44,13 +45,39 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
 
 def test_epoch(model, dataloader, criterion, device):
     mean_loss = list()
+    exemplary_data = None
     model.train(False)
     with torch.no_grad():
         for step, data in enumerate(dataloader):
             batch_data = data[0].to(device).float()
             y_hat, loss = query_ae(model, batch_data, criterion)
             mean_loss.append(loss.item())
-    return sum(mean_loss) / len(mean_loss)
+            if exemplary_data is None:
+                exemplary_data = [y_hat[0].detach().cpu().numpy(), data[0][0].detach().cpu().numpy()]
+    return sum(mean_loss) / len(mean_loss), exemplary_data
+
+
+# import matplotlib.pyplot as plt
+# import numpy as np
+#
+#
+# def create_img(arr1, arr2):
+#     fig, ax = plt.subplots()
+#
+#     series1 = [arr1[:, i] for i in range(arr1.shape[-1])]
+#     series2 = [arr2[:, i] for i in range(arr2.shape[-1])]
+#     t = np.arange(0, arr1.shape[0], 1)
+#     for s1, s2 in zip(series1, series2):
+#         ax.plot(t, s1, 'r')
+#         ax.plot(t, s2, 'g')
+#
+#     fig.canvas.draw()
+#     w, h = fig.get_size_inches() * fig.get_dpi()
+#     data = np.fromstring(fig.canvas.tostring_rgb(), dtype='uint8').reshape(int(h), int(w), 3)
+#
+#     im = data.reshape((-1, int(h), int(w)))[:3]
+#     # im = 255 * (im * np.min(im)) / (np.max(im) - np.min(im))
+#     return torch.Tensor(im).type(torch.uint8)
 
 
 def main(args):
@@ -90,7 +117,6 @@ def main(args):
 
                 # run train/test epoch
                 for epoch in range(args.epochs_sae):
-
                     # train epoch
                     train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, criterion, device)
                     writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
@@ -98,7 +124,7 @@ def main(args):
                     scheduler.step()
 
                     # test epoch
-                    test_epoch_loss = test_epoch(sae, test_dataloader, criterion, device)
+                    test_epoch_loss, _ = test_epoch(sae, test_dataloader, criterion, device)
                     writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
                     writer.flush()
 
@@ -120,8 +146,9 @@ def main(args):
             scheduler.step()
 
             # test epoch
-            test_epoch_loss = test_epoch(autoencoder, main_test_dataloader, criterion, device)
+            test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, criterion, device)
             writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
+            # writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
             writer.flush()
 
     # save the trained autoencoder
@@ -152,8 +179,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=160)
-    parser.add_argument('--epochs-ae', type=int, default=400)
+    parser.add_argument('--epochs-sae', type=int, default=1)
+    parser.add_argument('--epochs-ae', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)
