@@ -24,9 +24,9 @@ def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     data[indices_by_columns] = 1.
     data = data.sum(0)
     data = torch.max(data) - data
-    indices = linear_sum_assignment(data)
-    indices = torch.stack([torch.Tensor(t) for t in indices], 1).type(torch.int64)
-    return torch.sum(data[indices]) / total
+    row_ind, col_ind = linear_sum_assignment(data)
+    gathered = data[row_ind, col_ind].float()
+    return torch.sum(gathered) / total
 
 
 def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,

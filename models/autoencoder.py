@@ -18,9 +18,6 @@ class SAE(nn.Module):
             self.decoder.add_module("activation", activation_decoder)
         self.decoder_drop = nn.Dropout(dropout)
 
-        self.input_size = in_size
-        self.embedding_size = out_size
-
     def forward(self, inputs):
         x = self.encoder(self.encoder_drop(inputs))
         return self.decoder(self.decoder_drop(x))
