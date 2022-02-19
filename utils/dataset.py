@@ -30,17 +30,19 @@ def load_samples_to_device(data, device):
 def load_dataset(config):
     if config["dataset_type"].lower() in ["put", "qcat"]:
         train_ds, val_ds, test_ds = load_dataset_haptr(config)
-        ds = train_ds + val_ds + test_ds
-        val_ds = None
+        train_ds += val_ds
 
-        if config["dataset_type"].lower() == "put":
-            train_ds = pick_haptic_dataset(ds, config['train_val_classes'])
-            test_ds = pick_haptic_dataset(ds, config['test_classes'])
-        elif config["dataset_type"].lower() == "qcat":
-            train_ds = pick_qcat_dataset(ds, config['train_val_classes'])
-            test_ds = pick_qcat_dataset(ds, config['test_classes'])
-        else:
-            raise NotImplementedError("Cannot filter the dataset.")
+        # ds = train_ds + val_ds + test_ds
+        # val_ds = None
+        #
+        # if config["dataset_type"].lower() == "put":
+        #     train_ds = pick_haptic_dataset(ds, config['train_val_classes'])
+        #     test_ds = pick_haptic_dataset(ds, config['test_classes'])
+        # elif config["dataset_type"].lower() == "qcat":
+        #     train_ds = pick_qcat_dataset(ds, config['train_val_classes'])
+        #     test_ds = pick_qcat_dataset(ds, config['test_classes'])
+        # else:
+        #     raise NotImplementedError("Cannot filter the dataset.")
 
     elif config["dataset_type"].lower() == "touching":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])

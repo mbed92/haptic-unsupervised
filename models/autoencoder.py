@@ -1,22 +1,40 @@
 ''' Based on Unsupervised Deep Embedding for Clustering Analysis '''
-
 import torch.nn as nn
 
 
 class SAE(nn.Module):
-    def __init__(self, in_size, out_size, activation_encoder: nn.Module, activation_decoder: nn.Module, dropout=0.0):
+    def __init__(self, c_in: int, c_out: int, stride: int, act_enc: nn.Module, act_dec: nn.Module, dropout: float):
         super().__init__()
-        self.encoder = nn.Sequential()
-        self.encoder.add_module('lin', nn.Linear(in_size, out_size))
-        if activation_encoder is not None:
-            self.encoder.add_module("activation", activation_encoder)
-        self.encoder_drop = nn.Dropout(dropout)
 
-        self.decoder = nn.Sequential()
-        self.decoder.add_module('lin', nn.Linear(out_size, in_size))
-        if activation_decoder is not None:
-            self.decoder.add_module("activation", activation_decoder)
-        self.decoder_drop = nn.Dropout(dropout)
+        self.num_chan_in = c_in
+        self.num_chan_out = c_out
+        self.stride = stride
+        self.dropout = dropout
+
+        self.encoder, self.encoder_drop = self.build_encoder(c_in, c_out, act_enc, stride, dropout)
+        self.decoder, self.decoder_drop = self.build_decoder(c_out, c_in, act_dec, stride, dropout)
+
+    @staticmethod
+    def build_encoder(c_in, c_out, activation, stride, dropout):
+        layers = list()
+        layers.append(nn.Conv1d(c_in, c_out, 3, stride, padding=1))
+
+        if activation is not None:
+            layers.append(nn.BatchNorm1d(c_out))
+            layers.append(activation)
+
+        return nn.Sequential(*layers), nn.Dropout(dropout)
+
+    @staticmethod
+    def build_decoder(c_in, c_out, activation, stride, dropout):
+        layers = list()
+        layers.append(nn.ConvTranspose1d(c_in, c_out, 3, stride, padding=1, output_padding=stride-1))
+
+        if activation is not None:
+            layers.append(nn.BatchNorm1d(c_out))
+            layers.append(activation)
+
+        return nn.Sequential(*layers), nn.Dropout(dropout)
 
     def forward(self, inputs):
         x = self.encoder(self.encoder_drop(inputs))
@@ -34,31 +52,45 @@ class TimeSeriesAutoencoder(nn.Module):
         super().__init__()
         assert len(data_shape) > 0
 
-        flatten_data_size = 1
-        for ds in data_shape:
-            flatten_data_size *= ds
-        flatten_data_size = int(flatten_data_size)
+        sig_length, num_channels = data_shape
+        stride = 2
+        self.sae1 = SAE(num_channels, 16, stride, nn.GELU(), None, 0.0)  # reconstructs
+        self.sae2 = SAE(16, 32, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae3 = SAE(32, 64, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae4 = SAE(64, 64, 1, nn.GELU(), nn.GELU(), 0.0)
+        self.sae5 = SAE(64, 64, 1, nn.GELU(), nn.GELU(), 0.0)
+        self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4, self.sae5]
 
-        self._input_data_size = data_shape
-        self.sae1 = SAE(flatten_data_size, 500, nn.GELU(), None)
-        self.sae2 = SAE(500, 500, nn.GELU(), nn.GELU())
-        self.sae3 = SAE(500, 2000, nn.GELU(), nn.GELU())
-        self.sae4 = SAE(2000, embedding_size, None, nn.GELU())
+        self.last_layer_signal_length = int(sig_length / stride ** 3)
+        self.last_layer_filters = self.sae_modules[-1].num_chan_out
+        enc_output_length = self.last_layer_signal_length * self.last_layer_filters
 
-        self.encoder = nn.Sequential(
+        self.flatten = nn.Sequential(
             nn.Flatten(),
-            self.sae1.encoder,
-            self.sae2.encoder,
-            self.sae3.encoder,
-            self.sae4.encoder
+            nn.Linear(enc_output_length, embedding_size)
         )
 
-        self.decoder = nn.Sequential(
-            self.sae4.decoder,
-            self.sae3.decoder,
-            self.sae2.decoder,
-            self.sae1.decoder
+        self.unflatten = nn.Sequential(
+            nn.Linear(embedding_size, enc_output_length),
+            nn.GELU()
         )
+
+    def encoder(self, x):
+        x = self.sae1.encoder(x)
+        x = self.sae2.encoder(x)
+        x = self.sae3.encoder(x)
+        x = self.sae4.encoder(x)
+        x = self.sae5.encoder(x)
+        return self.flatten(x)
+
+    def decoder(self, x):
+        x = self.unflatten(x)
+        x = x.view(-1, self.last_layer_filters, self.last_layer_signal_length)
+        x = self.sae5.decoder(x)
+        x = self.sae4.decoder(x)
+        x = self.sae3.decoder(x)
+        x = self.sae2.decoder(x)
+        return self.sae1.decoder(x)
 
     def forward(self, inputs):
         return self.decoder(self.encoder(inputs))
