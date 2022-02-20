@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
-from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
@@ -18,6 +17,7 @@ from torchvision.transforms import ToTensor
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
+from utils.clustering import infer_kmeans
 from utils.embedding_dataset import EmbeddingDataset
 
 torch.manual_seed(42)
@@ -39,7 +39,7 @@ def train_ae(model, data, criterion, optimizer):
 
 def train_epoch(model, dataloader, optimizer, criterion, device):
     mean_loss = list()
-    model.train(True)
+    model.train_clust(True)
     for step, data in enumerate(dataloader):
         batch_data = data[0].to(device).float()
         y_hat, loss = train_ae(model, batch_data, criterion, optimizer)
@@ -50,7 +50,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
 def test_epoch(model, dataloader, criterion, device):
     mean_loss = list()
     exemplary_data = None
-    model.train(False)
+    model.train_clust(False)
     with torch.no_grad():
         for step, data in enumerate(dataloader):
             batch_data = data[0].to(device).float()
@@ -154,22 +154,9 @@ def main(args):
     torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
 
     # verify the unsupervised classification accuracy
-    x_train = torch.cat([y[0] for y in main_train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_train = torch.cat([y[1] for y in main_train_dataloader], 0).type(torch.float32)
-    emb_train = autoencoder.encoder(x_train.to(device)).detach().type(torch.float32)
-
-    x_test = torch.cat([y[0] for y in main_test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_test = torch.cat([y[1] for y in main_test_dataloader], 0).type(torch.float32)
-    emb_test = autoencoder.encoder(x_test.to(device)).detach().type(torch.float32)
-
-    kmeans = KMeans(n_clusters=train_ds.num_classes, n_init=20)
-    pred_train = torch.Tensor(kmeans.fit_predict(emb_train.cpu().numpy()))
-    pred_test = torch.Tensor(kmeans.predict(emb_test.cpu().numpy()))
-
-    print('===================')
-    print('| KMeans train accuracy:', utils.clustering.clustering_accuracy(y_train, pred_train).numpy(),
-          '| KMeans test accuracy:', utils.clustering.clustering_accuracy(y_test, pred_test).numpy())
-    print('===================')
+    emb_train, emb_test, y_train, y_test, x_train, x_test = infer_kmeans(autoencoder.encoder, train_dataloader,
+                                                                         test_dataloader,
+                                                                         train_ds.num_classes, device)
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb_train, y_train, writer)
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_train'), emb_test, y_test, writer, 1)
 
@@ -178,8 +165,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=1)
-    parser.add_argument('--epochs-ae', type=int, default=1000)
+    parser.add_argument('--epochs-sae', type=int, default=10000)
+    parser.add_argument('--epochs-ae', type=int, default=10000)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)
@@ -191,7 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('--eta-min-ae', type=float, default=5e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
-    parser.set_defaults(pretrain_sae=False)
+    parser.set_defaults(pretrain_sae=True)
 
     args, _ = parser.parse_known_args()
     main(args)

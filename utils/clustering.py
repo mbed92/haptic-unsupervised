@@ -2,7 +2,28 @@ import os
 
 import torch
 from scipy.optimize import linear_sum_assignment
+from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
+
+
+def infer_kmeans(model, train_dataloader, test_dataloader, expected_num_clusters, device):
+    x_train = torch.cat([y[0] for y in train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+    y_train = torch.cat([y[1] for y in train_dataloader], 0).type(torch.float32)
+    emb_train = model(x_train.to(device)).detach().type(torch.float32)
+
+    x_test = torch.cat([y[0] for y in test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+    y_test = torch.cat([y[1] for y in test_dataloader], 0).type(torch.float32)
+    emb_test = model(x_test.to(device)).detach().type(torch.float32)
+
+    kmeans = KMeans(n_clusters=expected_num_clusters, n_init=20)
+    pred_train = torch.Tensor(kmeans.fit_predict(emb_train.cpu().numpy()))
+    pred_test = torch.Tensor(kmeans.predict(emb_test.cpu().numpy()))
+
+    print('===================')
+    print('| KMeans train accuracy:', clustering_accuracy(y_train, pred_train).numpy(),
+          '| KMeans test accuracy:', clustering_accuracy(y_test, pred_test).numpy())
+    print('===================')
+    return emb_train, emb_test, y_train, y_test, x_train, x_test
 
 
 def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
@@ -19,7 +40,8 @@ def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     if int(torch.min(y_true).item()) == 0:
         true_idx += 1
 
-    data = torch.zeros([total, pred_idx, true_idx], dtype=torch.float32)
+    idx = max(pred_idx, true_idx)
+    data = torch.zeros([total, idx, idx], dtype=torch.float32)
     indices_by_columns = [indices[:, i] for i in range(indices.shape[-1])]
     data[indices_by_columns] = 1.
     data = data.sum(0)
