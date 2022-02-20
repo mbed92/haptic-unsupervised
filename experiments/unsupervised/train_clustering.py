@@ -11,16 +11,17 @@ from torchsummary import summary
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from experiments.unsupervised.train_ae import create_img
-from utils.clustering import clustering_accuracy, infer_kmeans
+from utils.clustering import create_img, measure_clustering_accuracy
 
 torch.manual_seed(42)
+mse = nn.MSELoss()
+kl = nn.KLDivLoss(reduction='batchmean')
 
 
 def query_clust(model, inputs, target_distribution):
     outputs = model(inputs.permute(0, 2, 1))
-    reconstruction_loss = nn.MSELoss()(outputs['reconstruction'].permute(0, 2, 1), inputs)
-    clustering_loss = nn.KLDivLoss(reduction='batchmean')(outputs['assignments'].log(), target_distribution)
+    reconstruction_loss = mse(outputs['reconstruction'].permute(0, 2, 1), inputs)
+    clustering_loss = kl(outputs['assignments'].log(), target_distribution)
     return outputs, reconstruction_loss, clustering_loss
 
 
@@ -97,6 +98,14 @@ def main(args):
     clust_model.from_pretrained(args.load_path, train_dataloader, device)
     summary(clust_model, input_size=data_shape)
 
+    x_train = torch.cat([y[0] for y in train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+    y_train = torch.cat([y[1] for y in train_dataloader], 0).type(torch.float32)
+    x_test = torch.cat([y[0] for y in test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+    y_test = torch.cat([y[1] for y in test_dataloader], 0).type(torch.float32)
+    pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).detach().cpu()
+    pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).detach().cpu()
+    measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+
     optimizer = torch.optim.AdamW(clust_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.eta_min)
 
@@ -118,17 +127,14 @@ def main(args):
         # save trained clust_model model
         torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
 
-    # verify the unsupervised classification accuracy
-    emb_train, emb_test, y_train, y_test, x_train, x_test = infer_kmeans(clust_model.autoencoder.encoder,
-                                                                         train_dataloader, test_dataloader,
-                                                                         train_ds.num_classes, device)
+    # verify the accuracy after training
+    pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).detach().cpu()
+    pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).detach().cpu()
+    measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
-    # verivy the classification accuracy
-    y_hat_train = clust_model.predict_class(x_train.to(device))
-    y_hat_test = clust_model.predict_class(x_test.to(device))
-    print('| KMeans train accuracy:', clustering_accuracy(y_train.to(device), y_hat_train).numpy(),
-          '| KMeans test accuracy:', clustering_accuracy(y_test.to(device), y_hat_test).numpy())
-
+    # save embeddings
+    emb_train = clust_model.autoencoder.encoder(x_train.to(device))
+    emb_test = clust_model.autoencoder.encoder(x_test.to(device))
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb_train, y_train, writer)
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_train'), emb_test, y_test, writer, 1)
 
@@ -146,7 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb20_11-51-52_mbed/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb20_15-19-50_mbed/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)

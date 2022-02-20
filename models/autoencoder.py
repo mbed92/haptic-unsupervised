@@ -54,11 +54,11 @@ class TimeSeriesAutoencoder(nn.Module):
 
         sig_length, num_channels = data_shape
         stride = 2
-        self.sae1 = SAE(num_channels, 16, stride, nn.GELU(), None, 0.0)  # reconstructs
-        self.sae2 = SAE(16, 32, stride, nn.GELU(), nn.GELU(), 0.0)
-        self.sae3 = SAE(32, 64, stride, nn.GELU(), nn.GELU(), 0.0)
-        self.sae4 = SAE(64, 64, 1, nn.GELU(), nn.GELU(), 0.0)
-        self.sae5 = SAE(64, 64, 1, nn.GELU(), nn.GELU(), 0.0)
+        self.sae1 = SAE(num_channels, 32, stride, nn.GELU(), None, 0.0)  # reconstructs
+        self.sae2 = SAE(32, 64, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae3 = SAE(64, 128, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae4 = SAE(128, 128, 1, nn.GELU(), nn.GELU(), 0.0)
+        self.sae5 = SAE(128, 128, 1, nn.GELU(), nn.GELU(), 0.0)
         self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4, self.sae5]
 
         self.last_layer_signal_length = int(sig_length / stride ** 3)
