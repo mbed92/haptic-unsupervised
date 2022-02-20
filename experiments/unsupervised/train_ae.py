@@ -3,6 +3,9 @@ import io
 import os
 from copy import deepcopy
 
+import PIL
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import yaml
@@ -10,6 +13,7 @@ from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
+from torchvision.transforms import ToTensor
 
 import models
 import submodules.haptic_transformer.utils as utils_haptr
@@ -57,27 +61,22 @@ def test_epoch(model, dataloader, criterion, device):
     return sum(mean_loss) / len(mean_loss), exemplary_data
 
 
-# import matplotlib.pyplot as plt
-# import numpy as np
-#
-#
-# def create_img(arr1, arr2):
-#     fig, ax = plt.subplots()
-#
-#     series1 = [arr1[:, i] for i in range(arr1.shape[-1])]
-#     series2 = [arr2[:, i] for i in range(arr2.shape[-1])]
-#     t = np.arange(0, arr1.shape[0], 1)
-#     for s1, s2 in zip(series1, series2):
-#         ax.plot(t, s1, 'r')
-#         ax.plot(t, s2, 'g')
-#
-#     fig.canvas.draw()
-#     w, h = fig.get_size_inches() * fig.get_dpi()
-#     data = np.fromstring(fig.canvas.tostring_rgb(), dtype='uint8').reshape(int(h), int(w), 3)
-#
-#     im = data.reshape((-1, int(h), int(w)))[:3]
-#     # im = 255 * (im * np.min(im)) / (np.max(im) - np.min(im))
-#     return torch.Tensor(im).type(torch.uint8)
+def create_img(arr1, arr2):
+    plt.figure()
+
+    series1 = [arr1[:, i] for i in range(arr1.shape[-1])]
+    series2 = [arr2[:, i] for i in range(arr2.shape[-1])]
+    t = np.arange(0, arr1.shape[0], 1)
+    for s1, s2 in zip(series1, series2):
+        plt.plot(t, s1, 'r')
+        plt.plot(t, s2, 'g')
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    image = PIL.Image.open(buf)
+    return ToTensor()(image)[:3]
 
 
 def main(args):
@@ -148,7 +147,7 @@ def main(args):
             # test epoch
             test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, criterion, device)
             writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
-            # writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
+            writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
             writer.flush()
 
     # save the trained autoencoder
@@ -180,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
     parser.add_argument('--epochs-sae', type=int, default=1)
-    parser.add_argument('--epochs-ae', type=int, default=1)
+    parser.add_argument('--epochs-ae', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)
@@ -192,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('--eta-min-ae', type=float, default=5e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
-    parser.set_defaults(pretrain_sae=True)
+    parser.set_defaults(pretrain_sae=False)
 
     args, _ = parser.parse_known_args()
     main(args)
