@@ -17,7 +17,7 @@ class SAE(nn.Module):
     @staticmethod
     def build_encoder(c_in, c_out, activation, stride, dropout):
         layers = list()
-        layers.append(nn.Conv1d(c_in, c_out, 3, stride, padding=1))
+        layers.append(nn.Conv1d(c_in, c_out, 5, stride, padding=2))
 
         if activation is not None:
             layers.append(nn.BatchNorm1d(c_out))
@@ -28,7 +28,7 @@ class SAE(nn.Module):
     @staticmethod
     def build_decoder(c_in, c_out, activation, stride, dropout):
         layers = list()
-        layers.append(nn.ConvTranspose1d(c_in, c_out, 3, stride, padding=1, output_padding=stride-1))
+        layers.append(nn.ConvTranspose1d(c_in, c_out, 5, stride, padding=2, output_padding=stride-1))
 
         if activation is not None:
             layers.append(nn.BatchNorm1d(c_out))
