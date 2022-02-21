@@ -1,0 +1,10 @@
+dataset_type: "put"
+dataset_folder: "/media/mbed/internal/backup/haptr"
+dataset_file: "cropped.pickle"
+signal_length: 160
+signal_start: 0
+k_folds: 5
+pick_modalities: [ 0, 1 ]
+split_modalities: False
+train_val_classes: [ 0, 1, 2, 3, 4, 5, 6 ]
+test_classes: [ 7 ]
