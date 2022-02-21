@@ -117,20 +117,24 @@ def main(args):
             writer.add_scalar('loss/train/cluster_loss', clust_loss, epoch)
             writer.add_scalar('loss/train/accuracy', accuracy, epoch)
             scheduler.step()
+            writer.flush()
 
-            recon_loss, clust_loss, accuracy, exemplary_sample = test_epoch(clust_model, train_dataloader, device)
-            writer.add_scalar('loss/test/recon_loss', recon_loss, epoch)
-            writer.add_scalar('loss/test/cluster_loss', clust_loss, epoch)
-            writer.add_scalar('loss/test/accuracy', accuracy, epoch)
-            writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), epoch)
+            with torch.no_grad():
+                recon_loss, clust_loss, accuracy, exemplary_sample = test_epoch(clust_model, train_dataloader, device)
+                writer.add_scalar('loss/test/recon_loss', recon_loss, epoch)
+                writer.add_scalar('loss/test/cluster_loss', clust_loss, epoch)
+                writer.add_scalar('loss/test/accuracy', accuracy, epoch)
+                writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), epoch)
+                writer.flush()
 
         # save trained clust_model model
         torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
 
     # verify the accuracy after training
-    pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).detach().cpu()
-    pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).detach().cpu()
-    measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+    with torch.no_grad():
+        pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).cpu()
+        pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).cpu()
+        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
     # save embeddings
     emb_train = clust_model.autoencoder.encoder(x_train.to(device))

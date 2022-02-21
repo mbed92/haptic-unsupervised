@@ -96,16 +96,19 @@ def main(args):
                     train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, device)
                     writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
                     writer.add_scalar('lr/train/SAE', optimizer.param_groups[0]['lr'], epoch)
+                    writer.flush()
                     scheduler.step()
 
                     # test epoch
-                    test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
-                    writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
-                    writer.flush()
+                    with torch.no_grad():
+                        test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
+                        writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
+                        writer.flush()
 
                 # prepare data for the previously trained SAE for the next SAE
-                train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
-                test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
+                with torch.no_grad():
+                    train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
+                    test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
 
     # train the main autoencoder
     main_log_dir = os.path.join(log_dir, 'full')
@@ -118,26 +121,29 @@ def main(args):
             train_epoch_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)
             writer.add_scalar('loss/train/AE', train_epoch_loss, epoch)
             writer.add_scalar('lr/train/AE', optimizer.param_groups[0]['lr'], epoch)
+            writer.flush()
             scheduler.step()
 
             # test epoch
-            test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
-            writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
-            writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
-            writer.flush()
+            with torch.no_grad():
+                test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
+                writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
+                writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
+                writer.flush()
 
     # save the trained autoencoder
     torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
 
     # verify the unsupervised classification accuracy
-    x_train = torch.cat([y[0] for y in main_train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_train = torch.cat([y[1] for y in main_train_dataloader], 0).type(torch.float32)
-    x_test = torch.cat([y[0] for y in main_test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_test = torch.cat([y[1] for y in main_test_dataloader], 0).type(torch.float32)
-    emb_train = autoencoder.encoder(x_train.to(device)).type(torch.float32).detach().cpu().numpy()
-    emb_test = autoencoder.encoder(x_test.to(device)).type(torch.float32).detach().cpu().numpy()
-    pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
-    measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+    with torch.no_grad():
+        x_train = torch.cat([y[0] for y in main_train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+        y_train = torch.cat([y[1] for y in main_train_dataloader], 0).type(torch.float32)
+        x_test = torch.cat([y[0] for y in main_test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
+        y_test = torch.cat([y[1] for y in main_test_dataloader], 0).type(torch.float32)
+        emb_train = autoencoder.encoder(x_train.to(device)).type(torch.float32).cpu().numpy()
+        emb_test = autoencoder.encoder(x_test.to(device)).type(torch.float32).cpu().numpy()
+        pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
+        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb_train, y_train, writer)
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_train'), emb_test, y_test, writer, 1)
@@ -148,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
     parser.add_argument('--epochs-sae', type=int, default=400)
-    parser.add_argument('--epochs-ae', type=int, default=2000)
+    parser.add_argument('--epochs-ae', type=int, default=5000)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)
