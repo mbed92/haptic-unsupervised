@@ -2,10 +2,18 @@ import os
 from copy import copy
 
 import numpy as np
-
+import torch
 from data import TouchingDataset
 from submodules.haptic_transformer.data import HapticDataset, QCATDataset
 from submodules.haptic_transformer.utils.dataset import load_dataset as load_dataset_haptr
+
+
+def get_total_data_from_dataloader(dataloader):
+    x_list, y_list = list(), list()
+    for sample in dataloader:
+        x_list.extend(sample[0])
+        y_list.extend(sample[1])
+    return torch.stack(x_list, 0).float(), torch.stack(y_list, 0).float()
 
 
 def pick_haptic_dataset(ds: HapticDataset, classes: list):

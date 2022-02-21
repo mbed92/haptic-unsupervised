@@ -98,13 +98,13 @@ def main(args):
     clust_model.from_pretrained(args.load_path, train_dataloader, device)
     summary(clust_model, input_size=data_shape)
 
-    x_train = torch.cat([y[0] for y in train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_train = torch.cat([y[1] for y in train_dataloader], 0).type(torch.float32)
-    x_test = torch.cat([y[0] for y in test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-    y_test = torch.cat([y[1] for y in test_dataloader], 0).type(torch.float32)
-    pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).detach().cpu()
-    pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).detach().cpu()
-    measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+    # verify initial accuracy
+    with torch.no_grad():
+        x_train, y_train = utils.dataset.get_total_data_from_dataloader(train_dataloader)
+        x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
+        pred_train = clust_model.predict_class(x_train.permute(0, 2, 1).to(device)).type(torch.float32)
+        pred_test = clust_model.predict_class(x_test.permute(0, 2, 1).to(device)).type(torch.float32)
+        measure_clustering_accuracy(y_train, pred_train.cpu(), y_test, pred_test.cpu())
 
     optimizer = torch.optim.AdamW(clust_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.eta_min)
@@ -132,22 +132,25 @@ def main(args):
 
     # verify the accuracy after training
     with torch.no_grad():
-        pred_train = clust_model.predict_class(x_train.to(device)).type(torch.float32).cpu()
-        pred_test = clust_model.predict_class(x_test.to(device)).type(torch.float32).cpu()
-        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        clust_model.cpu()
+        x_train, y_train = utils.dataset.get_total_data_from_dataloader(train_dataloader)
+        x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
+        pred_train = clust_model.predict_class(x_train.permute(0, 2, 1)).type(torch.float32)
+        pred_test = clust_model.predict_class(x_test.permute(0, 2, 1)).type(torch.float32)
+        emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
+        emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
 
-    # save embeddings
-    emb_train = clust_model.autoencoder.encoder(x_train.to(device))
-    emb_test = clust_model.autoencoder.encoder(x_test.to(device))
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb_train, y_train, writer)
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_train'), emb_test, y_test, writer, 1)
+        # save embeddings
+        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'clusst_vis_test'), emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'clusst_vis_train'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument('--epochs', type=int, default=10000)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--num-classes', type=int, default=8)
     parser.add_argument('--dropout', type=float, default=.1)
@@ -156,7 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb20_15-19-50_mbed/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb21_21-04-27_mbed/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)
