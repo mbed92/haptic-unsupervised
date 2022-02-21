@@ -39,7 +39,7 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, _, test_ds = utils.dataset.load_dataset(config)
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
@@ -61,6 +61,7 @@ def main(args):
     criterion = nn.CrossEntropyLoss(weight=w)
 
     # start
+    best_acc_test = 0
     y_pred_test, y_true_test = [], []
     with SummaryWriter(log_dir=log_dir) as writer:
         for epoch in range(args.epochs):
@@ -82,20 +83,50 @@ def main(args):
             writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], epoch)
             scheduler.step()
 
-            # test
+            # run test loop
+            mean_loss, correct = 0.0, 0
             model.train(False)
+            y_pred, y_true = [], []
             with torch.no_grad():
                 for step, data in enumerate(test_dataloader):
                     batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
-                    _, _, latent_vector = query(batch_data, batch_labels, model, criterion)
-                    embeddings.extend(latent_vector)
-                    labels.extend(batch_labels)
+                    out, loss, data_dict = query(batch_data, batch_labels, model, criterion)
+                    mean_loss += loss.item()
+                    correct += batch_hits(out, batch_labels)
+
+                    # update statistics
+                    _, predicted = torch.max(out.data, 1)
+                    y_pred.extend(predicted.data.cpu().numpy())
+                    y_true.extend(batch_labels.data.cpu().numpy())
+
+            # calculate epoch accuracy
+            epoch_accuracy = accuracy(correct, len(test_ds))
+            if epoch_accuracy > best_acc_test:
+                torch.save(model, os.path.join(writer.log_dir, 'test_model'))
+                best_acc_test = epoch_accuracy
+                results['test'] = best_acc_test
+                y_pred_test = y_pred
+                y_true_test = y_true
+                print(f'Epoch {epoch}, test accuracy: {best_acc_test}')
 
             # update tensorboard
-            if epoch % args.projector_interval == 0:
-                embeddings = torch.stack(embeddings, 0).detach().cpu().numpy()
-                labels = torch.stack(labels, 0).detach().cpu().numpy()
-                writer.add_embedding(embeddings, labels, global_step=epoch)
+            writer.add_scalar('loss/test', mean_loss / len(test_ds), epoch)
+            writer.add_scalar('accuracy/test', epoch_accuracy, epoch)
+
+            # test
+            # model.train(False)
+            # with torch.no_grad():
+            #     for step, data in enumerate(test_dataloader):
+            #         batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
+            #         _, _, latent_vector = query(batch_data, batch_labels, model, criterion)
+            #         embeddings.extend(latent_vector)
+            #         labels.extend(batch_labels)
+
+            # update tensorboard
+            # if epoch % args.projector_interval == 0:
+            #     embeddings = torch.stack(embeddings, 0).detach().cpu().numpy()
+            #     labels = torch.stack(labels, 0).detach().cpu().numpy()
+            #     writer.add_embedding(embeddings, labels, global_step=epoch)
 
         utils_haptr.log.save_statistics(y_true_test, y_pred_test, model, os.path.join(log_dir, 'test'), data_shape)
         writer.flush()
@@ -103,13 +134,25 @@ def main(args):
     # save all statistics
     utils_haptr.log.save_dict(results, os.path.join(log_dir, 'results.txt'))
 
+    with torch.no_grad():
+        x_train = torch.cat([y[0] for y in train_dataloader], 0).type(torch.float32)
+        x_test = torch.cat([y[0] for y in test_dataloader], 0).type(torch.float32)
+        y_train = torch.cat([y[1] for y in train_dataloader], 0).type(torch.float32)
+        y_test = torch.cat([y[1] for y in test_dataloader], 0).type(torch.float32)
+        x = torch.cat([x_train, x_test], 0).detach().cpu()
+        y = torch.cat([y_train, y_test], 0).detach()
+        model.cpu()
+        _, data_dict = model(x)
+
+    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), data_dict["lv"], y, writer)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/put_0.yaml")
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--num-classes', type=int, default=8)
     parser.add_argument('--projection-dim', type=int, default=16)
     parser.add_argument('--sequence-length', type=int, default=160)
@@ -121,7 +164,6 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.999)
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
-    parser.add_argument('--model-type', type=str, default='haptr')
     parser.add_argument('--projector-interval', type=int, default=100)
 
     args, _ = parser.parse_known_args()
