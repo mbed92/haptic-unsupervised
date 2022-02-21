@@ -135,12 +135,10 @@ def main(args):
     utils_haptr.log.save_dict(results, os.path.join(log_dir, 'results.txt'))
 
     with torch.no_grad():
-        x_train = torch.cat([y[0] for y in train_dataloader], 0).type(torch.float32)
-        x_test = torch.cat([y[0] for y in test_dataloader], 0).type(torch.float32)
-        y_train = torch.cat([y[1] for y in train_dataloader], 0).type(torch.float32)
-        y_test = torch.cat([y[1] for y in test_dataloader], 0).type(torch.float32)
-        x = torch.cat([x_train, x_test], 0).detach().cpu()
-        y = torch.cat([y_train, y_test], 0).detach()
+        x_train, y_train = utils.dataset.get_total_data_from_dataloader(train_dataloader)
+        x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
+        x = torch.cat([x_train, x_test], 0).cpu()
+        y = torch.cat([y_train, y_test], 0)
         model.cpu()
         _, data_dict = model(x)
 
@@ -151,7 +149,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put_0.yaml")
-    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--num-classes', type=int, default=8)
     parser.add_argument('--projection-dim', type=int, default=16)

@@ -136,12 +136,11 @@ def main(args):
 
     # verify the unsupervised classification accuracy
     with torch.no_grad():
-        x_train = torch.cat([y[0] for y in main_train_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-        y_train = torch.cat([y[1] for y in main_train_dataloader], 0).type(torch.float32)
-        x_test = torch.cat([y[0] for y in main_test_dataloader], 0).type(torch.float32).permute(0, 2, 1)
-        y_test = torch.cat([y[1] for y in main_test_dataloader], 0).type(torch.float32)
-        emb_train = autoencoder.encoder(x_train.to(device)).type(torch.float32).cpu().numpy()
-        emb_test = autoencoder.encoder(x_test.to(device)).type(torch.float32).cpu().numpy()
+        autoencoder.cpu()
+        x_train, y_train = utils.dataset.get_total_data_from_dataloader(main_train_dataloader)
+        x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
+        emb_train = autoencoder.encoder(x_train.cpu().permute(0, 2, 1)).numpy()
+        emb_test = autoencoder.encoder(x_test.cpu().permute(0, 2, 1)).numpy()
         pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
         measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
@@ -154,7 +153,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
     parser.add_argument('--epochs-sae', type=int, default=400)
-    parser.add_argument('--epochs-ae', type=int, default=5000)
+    parser.add_argument('--epochs-ae', type=int, default=10000)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)
