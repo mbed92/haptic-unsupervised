@@ -113,21 +113,6 @@ def main(args):
             writer.add_scalar('loss/test', mean_loss / len(test_ds), epoch)
             writer.add_scalar('accuracy/test', epoch_accuracy, epoch)
 
-            # test
-            # model.train(False)
-            # with torch.no_grad():
-            #     for step, data in enumerate(test_dataloader):
-            #         batch_data, batch_labels = utils.dataset.load_samples_to_device(data, device)
-            #         _, _, latent_vector = query(batch_data, batch_labels, model, criterion)
-            #         embeddings.extend(latent_vector)
-            #         labels.extend(batch_labels)
-
-            # update tensorboard
-            # if epoch % args.projector_interval == 0:
-            #     embeddings = torch.stack(embeddings, 0).detach().cpu().numpy()
-            #     labels = torch.stack(labels, 0).detach().cpu().numpy()
-            #     writer.add_embedding(embeddings, labels, global_step=epoch)
-
         utils_haptr.log.save_statistics(y_true_test, y_pred_test, model, os.path.join(log_dir, 'test'), data_shape)
         writer.flush()
 
@@ -148,7 +133,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/put_0.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/touching_0.yaml")
     parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--num-classes', type=int, default=8)
@@ -162,7 +147,6 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.999)
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
-    parser.add_argument('--projector-interval', type=int, default=100)
 
     args, _ = parser.parse_known_args()
     main(args)

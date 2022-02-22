@@ -56,6 +56,7 @@ def test_epoch(model, dataloader, device):
                 exemplary_data = [y_hat[0].detach().cpu().numpy(), data[0][0].detach().cpu().numpy()]
     return sum(mean_loss) / len(mean_loss), exemplary_data
 
+
 def main(args):
     log_dir = utils_haptr.log.logdir_name('./', 'autoencoder')
     utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
@@ -152,8 +153,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=400)
-    parser.add_argument('--epochs-ae', type=int, default=10000)
+    parser.add_argument('--epochs-sae', type=int, default=1)
+    parser.add_argument('--epochs-ae', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--embed_size', type=int, default=16)

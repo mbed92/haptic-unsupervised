@@ -3,6 +3,7 @@ from copy import copy
 
 import numpy as np
 import torch
+
 from data import TouchingDataset
 from submodules.haptic_transformer.data import HapticDataset, QCATDataset
 from submodules.haptic_transformer.utils.dataset import load_dataset as load_dataset_haptr
@@ -40,31 +41,33 @@ def load_dataset(config):
         train_ds, val_ds, test_ds = load_dataset_haptr(config)
         train_ds += val_ds
 
-        # ds = train_ds + val_ds + test_ds
-        # val_ds = None
-        #
-        # if config["dataset_type"].lower() == "put":
-        #     train_ds = pick_haptic_dataset(ds, config['train_val_classes'])
-        #     test_ds = pick_haptic_dataset(ds, config['test_classes'])
-        # elif config["dataset_type"].lower() == "qcat":
-        #     train_ds = pick_qcat_dataset(ds, config['train_val_classes'])
-        #     test_ds = pick_qcat_dataset(ds, config['test_classes'])
-        # else:
-        #     raise NotImplementedError("Cannot filter the dataset.")
+        if 'test_classes' in config.keys() or 'train_val_classes' in config.keys():
+            ds = train_ds + val_ds + test_ds
+            val_ds = None
+
+            if config["dataset_type"].lower() == "put":
+                train_ds = pick_haptic_dataset(ds, config['train_val_classes'])
+                test_ds = pick_haptic_dataset(ds, config['test_classes'])
+            elif config["dataset_type"].lower() == "qcat":
+                train_ds = pick_qcat_dataset(ds, config['train_val_classes'])
+                test_ds = pick_qcat_dataset(ds, config['test_classes'])
+            else:
+                raise NotImplementedError("Cannot filter the dataset.")
 
     elif config["dataset_type"].lower() == "touching":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
+        picked_classes = config['train_val_classes'] if 'train_val_classes' in config.keys() else []
         train_ds = TouchingDataset(dataset_path,
                                    directions=config['train_val_directions'],
-                                   classes=config['train_val_classes'],
+                                   classes=picked_classes,
                                    signal_start=config['signal_start'],
                                    signal_length=config['signal_length'])
 
         val_ds = None
-
+        picked_classes = config['test_classes'] if 'test_classes' in config.keys() else []
         test_ds = TouchingDataset(dataset_path,
                                   directions=config['test_directions'],
-                                  classes=config['test_classes'],
+                                  classes=picked_classes,
                                   signal_start=config['signal_start'],
                                   signal_length=config['signal_length'])
     else:
