@@ -25,20 +25,22 @@ def measure_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
 
 def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     y_true, y_pred = y_true.int(), y_pred.int()
-    total = y_pred.shape[0]
-    sample_idx = torch.arange(total).to(y_true.device)
-    indices = torch.stack([sample_idx, y_pred, y_true], 1).type(torch.int64)
 
     # add 1 when classes are ordered from 0
-    true_idx = int(torch.max(y_true).item())
-    if int(torch.min(y_true).item()) == 0:
-        true_idx += 1
+    pred_idx_min, pred_idx_max = int(torch.min(y_pred).item()), int(torch.max(y_pred).item())
+    true_idx_min, true_idx_max = int(torch.min(y_true).item()), int(torch.max(y_true).item())
 
-    data = torch.zeros([total, true_idx, true_idx], dtype=torch.float32)
+    pred_idx = pred_idx_max + 1 if pred_idx_min == 0 else pred_idx_max
+    true_idx = true_idx_max + 1 if true_idx_min == 0 else true_idx_max
+
+    total = y_pred.shape[0]
+    sample_idx = torch.arange(total)
+    data = torch.zeros([total, pred_idx, true_idx], dtype=torch.float32)
+    indices = torch.stack([sample_idx, y_pred, y_true], 1).type(torch.int64)
     indices_by_columns = [indices[:, i] for i in range(indices.shape[-1])]
     data[indices_by_columns] = 1.  # scatter_nd
-    data = data.sum(0)
-    row_ind, col_ind = linear_sum_assignment(torch.max(data) - data)
+    assignment_cost = torch.max(data) - data
+    row_ind, col_ind = linear_sum_assignment(assignment_cost)
     gathered = data[row_ind, col_ind].float()  # gather_nd
     return torch.sum(gathered) / total
 
