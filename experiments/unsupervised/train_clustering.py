@@ -142,8 +142,9 @@ def main(args):
 
         # save embeddings
         measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'clusst_vis_test'), emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'clusst_vis_train'), emb_test, y_test, writer, 1)
+        emb = torch.cat([emb_train, emb_test], 0)
+        y = torch.cat([y_train, y_test], 0)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb, y, writer)
 
 
 if __name__ == '__main__':
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-3)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/Feb21_21-04-27_mbed/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/unsupervised/autoencoder/put/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)

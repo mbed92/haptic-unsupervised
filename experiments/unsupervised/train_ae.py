@@ -115,8 +115,7 @@ def main(args):
     main_log_dir = os.path.join(log_dir, 'full')
     with SummaryWriter(log_dir=main_log_dir) as writer:
         optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=args.lr_ae, weight_decay=args.weight_decay_ae)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs_ae,
-                                                               eta_min=args.eta_min_ae)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs_ae, eta_min=args.eta_min_ae)
 
         for epoch in range(args.epochs_ae):
             train_epoch_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)
@@ -140,8 +139,8 @@ def main(args):
         autoencoder.cpu()
         x_train, y_train = utils.dataset.get_total_data_from_dataloader(main_train_dataloader)
         x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
-        emb_train = autoencoder.encoder(x_train.cpu().permute(0, 2, 1)).numpy()
-        emb_test = autoencoder.encoder(x_test.cpu().permute(0, 2, 1)).numpy()
+        emb_train = autoencoder.encoder(x_train.permute(0, 2, 1)).numpy()
+        emb_test = autoencoder.encoder(x_test.permute(0, 2, 1)).numpy()
         pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
         measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
@@ -157,7 +156,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs-ae', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=512)
     parser.add_argument('--dropout', type=float, default=.2)
-    parser.add_argument('--embed_size', type=int, default=16)
+    parser.add_argument('--embed_size', type=int, default=128)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
     parser.add_argument('--lr-ae', type=float, default=1e-3)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)

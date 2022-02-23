@@ -1,0 +1,9 @@
+dataset_type: "touching"
+train_val_directions: [ 'E', 'N', 'S', 'W', 'C' ]
+train_val_classes: [ 0, 1, 2, 3, 4, 5, 6, 8, 9, 10 ]
+test_directions: [ 'E', 'N', 'S', 'W', 'C' ]
+test_classes: [ 7 ]
+dataset_folder: "/media/mbed/internal/backup/haptr"
+dataset_file: "touching.mat"
+signal_length: 160
+signal_start: 0
