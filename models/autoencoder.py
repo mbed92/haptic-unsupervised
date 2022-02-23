@@ -17,22 +17,22 @@ class SAE(nn.Module):
     @staticmethod
     def build_encoder(c_in, c_out, activation, stride, dropout):
         layers = list()
-        layers.append(nn.Conv1d(c_in, c_out, 7, stride, padding=3))
+        layers.append(nn.Conv1d(c_in, c_out, 3, stride, padding=1))
 
         if activation is not None:
-            layers.append(nn.BatchNorm1d(c_out))
             layers.append(activation)
+            layers.append(nn.BatchNorm1d(c_out))
 
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
     @staticmethod
     def build_decoder(c_in, c_out, activation, stride, dropout):
         layers = list()
-        layers.append(nn.ConvTranspose1d(c_in, c_out, 7, stride, padding=3, output_padding=stride - 1))
+        layers.append(nn.ConvTranspose1d(c_in, c_out, 3, stride, padding=1, output_padding=stride - 1))
 
         if activation is not None:
-            layers.append(nn.BatchNorm1d(c_out))
             layers.append(activation)
+            layers.append(nn.BatchNorm1d(c_out))
 
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
@@ -54,11 +54,11 @@ class TimeSeriesAutoencoder(nn.Module):
 
         sig_length, num_channels = data_shape
         stride = 2
-        self.sae1 = SAE(num_channels, 64, stride, nn.GELU(), None, 0.0)  # reconstructs
-        self.sae2 = SAE(64, 64, stride, nn.GELU(), nn.GELU(), 0.0)
-        self.sae3 = SAE(64, 128, stride, nn.GELU(), nn.GELU(), 0.0)
-        self.sae4 = SAE(128, 128, stride, nn.GELU(), nn.GELU(), 0.0)
-        self.sae5 = SAE(128, 256, 1, nn.GELU(), nn.GELU(), 0.0)
+        self.sae1 = SAE(num_channels, 16, stride, nn.GELU(), None, 0.0)  # reconstructs
+        self.sae2 = SAE(16, 32, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae3 = SAE(32, 64, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae4 = SAE(64, 128, stride, nn.GELU(), nn.GELU(), 0.0)
+        self.sae5 = SAE(128, 128, 1, nn.GELU(), nn.GELU(), 0.0)
         self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4, self.sae5]
 
         self.last_layer_signal_length = int(sig_length / stride ** 4)
@@ -67,6 +67,7 @@ class TimeSeriesAutoencoder(nn.Module):
 
         self.flatten = nn.Sequential(
             nn.Flatten(),
+            nn.BatchNorm1d(enc_output_length),
             nn.Linear(enc_output_length, embedding_size),
             nn.GELU(),
             nn.Dropout(0.2),
@@ -74,6 +75,7 @@ class TimeSeriesAutoencoder(nn.Module):
         )
 
         self.unflatten = nn.Sequential(
+            nn.BatchNorm1d(embedding_size),
             nn.Linear(embedding_size, enc_output_length),
             nn.GELU(),
             nn.Dropout(0.2)

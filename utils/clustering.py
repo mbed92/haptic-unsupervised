@@ -12,7 +12,7 @@ from torchvision.transforms import ToTensor
 
 
 def kmeans(x_train, x_test, expected_num_clusters):
-    kmeans = KMeans(n_clusters=expected_num_clusters, n_init=20)
+    kmeans = KMeans(n_clusters=expected_num_clusters, n_init=100, max_iter=500)
     return torch.Tensor(kmeans.fit_predict(x_train)), torch.Tensor(kmeans.predict(x_test))
 
 
@@ -25,24 +25,18 @@ def measure_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
 
 def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     y_true, y_pred = y_true.int(), y_pred.int()
-
-    # add 1 when classes are ordered from 0
-    pred_idx_min, pred_idx_max = int(torch.min(y_pred).item()), int(torch.max(y_pred).item())
-    true_idx_min, true_idx_max = int(torch.min(y_true).item()), int(torch.max(y_true).item())
-
-    pred_idx = pred_idx_max + 1 if pred_idx_min == 0 else pred_idx_max
-    true_idx = true_idx_max + 1 if true_idx_min == 0 else true_idx_max
-
-    total = y_pred.shape[0]
-    sample_idx = torch.arange(total)
-    data = torch.zeros([total, pred_idx, true_idx], dtype=torch.float32)
+    num_samples = y_pred.shape[0]
+    shape = (
+        num_samples, int(torch.max(y_pred).item()) + 1, int(torch.max(y_true).item()) + 1)  # classes ordered from 0
+    sample_idx = torch.arange(num_samples).to(y_pred.device)
     indices = torch.stack([sample_idx, y_pred, y_true], 1).type(torch.int64)
-    indices_by_columns = [indices[:, i] for i in range(indices.shape[-1])]
-    data[indices_by_columns] = 1.  # scatter_nd
+    data = torch.zeros(shape, dtype=torch.float32)
+    data[indices[:, 0], indices[:, 1], indices[:, 2]] = 1.0  # scatter_nd
+    data = data.sum(0)
     assignment_cost = torch.max(data) - data
     row_ind, col_ind = linear_sum_assignment(assignment_cost)
     gathered = data[row_ind, col_ind].float()  # gather_nd
-    return torch.sum(gathered) / total
+    return torch.sum(gathered) / num_samples
 
 
 def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,
