@@ -5,5 +5,5 @@ test_directions: [ 'E', 'N', 'S', 'W', 'C' ]
 test_classes: [ 8 ]
 dataset_folder: "/media/mbed/internal/backup/haptr"
 dataset_file: "touching.mat"
-signal_length: 160
+signal_length: 192
 signal_start: 0

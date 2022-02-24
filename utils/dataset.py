@@ -61,7 +61,8 @@ def load_dataset(config):
                                    directions=config['train_val_directions'],
                                    classes=picked_classes,
                                    signal_start=config['signal_start'],
-                                   signal_length=config['signal_length'])
+                                   signal_length=config['signal_length'],
+                                   standarize=True)
 
         val_ds = None
         picked_classes = config['test_classes'] if 'test_classes' in config.keys() else []
@@ -69,7 +70,9 @@ def load_dataset(config):
                                   directions=config['test_directions'],
                                   classes=picked_classes,
                                   signal_start=config['signal_start'],
-                                  signal_length=config['signal_length'])
+                                  signal_length=config['signal_length'],
+                                  standarize=False)
+        test_ds.signals = (test_ds.signals - train_ds.mean) / train_ds.std
     else:
         raise NotImplementedError("Dataset not recognized. Allowed options are: QCAT, PUT, TOUCHING")
 

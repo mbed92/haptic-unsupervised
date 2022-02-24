@@ -4,7 +4,8 @@ from torch.utils.data import Dataset
 
 
 class TouchingDataset(Dataset):
-    def __init__(self, path, directions, classes, signal_start=90, signal_length=90, standarize=True):
+    def __init__(self, path, directions, classes, signal_start=90, signal_length=90, standarize=True, reorder=True):
+        self.num_classes = 11
         pickled = loadmat(path)
         self.signals, self.labels = list(), list()
         for key in pickled.keys():
@@ -18,19 +19,25 @@ class TouchingDataset(Dataset):
                     continue
 
         if len(self.signals) > 0 and len(self.labels) > 0:
-            self.signals = np.concatenate(self.signals)
-            self.labels = np.concatenate(self.labels)
+            self.signals = np.concatenate(self.signals, 0)
+            self.labels = np.concatenate(self.labels, 0)
             assert self.labels.shape[0] == self.signals.shape[0]
         else:
             raise ValueError("Empty dataset.")
 
         # pick only chosen classes if specified
-        if type(classes) is list and len(classes) > 0:
+        if type(classes) is list and 0 < len(classes):
             idx = np.argwhere([self.labels == c for c in classes])
             self.labels = self.labels[idx[:, -1]]
             self.signals = self.signals[idx[:, -1]]
 
-        self.num_classes = 11
+            if reorder:
+                for new_class_idx, c in enumerate(classes):
+                    idx = np.argwhere(self.labels == c)
+                    self.labels[idx[:, -1]] = new_class_idx
+
+                self.num_classes = len(classes)
+
         self.mean, self.std = np.mean(self.signals, (0, 1), keepdims=True), np.std(self.signals, (0, 1), keepdims=True)
         self.weights = np.ones(self.num_classes)
         self.signal_start = signal_start

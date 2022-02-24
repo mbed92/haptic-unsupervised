@@ -13,21 +13,25 @@ import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from utils.clustering import create_img, kmeans, measure_clustering_accuracy
-from utils.embedding_dataset import EmbeddingDataset
+from utils.dataset_loaders import EmbeddingDataset
 
 torch.manual_seed(42)
 mse = nn.MSELoss()
 
 
-def query_ae(model, data):
-    y_hat = model(data.permute(0, 2, 1)).permute(0, 2, 1)
+def query_ae(model, data, noise=None):
+    if noise is not None:
+        y_hat = model((data + noise).permute(0, 2, 1)).permute(0, 2, 1)
+    else:
+        y_hat = model(data.permute(0, 2, 1)).permute(0, 2, 1)
+
     loss = mse(y_hat, data)
     return y_hat, loss
 
 
-def train_ae(model, data, optimizer):
+def train_ae(model, data, optimizer, noise=None):
     optimizer.zero_grad()
-    y_hat, loss = query_ae(model, data)
+    y_hat, loss = query_ae(model, data, noise)
     loss.backward()
     optimizer.step()
     return y_hat, loss
@@ -72,7 +76,8 @@ def main(args):
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # setup a model
-    autoencoder = models.TimeSeriesAutoencoder(data_shape, args.embed_size)
+    autoencoder = models.TimeSeriesAutoencoder(data_shape)
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     autoencoder.to(device)
     summary(autoencoder, input_size=data_shape)
@@ -144,19 +149,18 @@ def main(args):
         pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
         measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_test'), emb_train, y_train, writer)
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'visualization_train'), emb_test, y_test, writer, 1)
+    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/submodules/haptic_transformer/experiments/config/put_haptr_12.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=1)
-    parser.add_argument('--epochs-ae', type=int, default=1)
-    parser.add_argument('--batch-size', type=int, default=512)
+                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
+    parser.add_argument('--epochs-sae', type=int, default=400)
+    parser.add_argument('--epochs-ae', type=int, default=400)
+    parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--dropout', type=float, default=.2)
-    parser.add_argument('--embed_size', type=int, default=128)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
     parser.add_argument('--lr-ae', type=float, default=1e-3)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
@@ -165,7 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
-    parser.set_defaults(pretrain_sae=True)
+    parser.set_defaults(pretrain_sae=False)
 
     args, _ = parser.parse_known_args()
     main(args)
