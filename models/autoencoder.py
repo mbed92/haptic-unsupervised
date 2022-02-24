@@ -20,8 +20,8 @@ class SAE(nn.Module):
         layers.append(nn.Conv1d(c_in, c_out, 3, stride, padding=1))
 
         if activation is not None:
-            layers.append(activation)
             layers.append(nn.BatchNorm1d(c_out))
+            layers.append(activation)
 
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
@@ -31,8 +31,8 @@ class SAE(nn.Module):
         layers.append(nn.ConvTranspose1d(c_in, c_out, 3, stride, padding=1, output_padding=stride - 1))
 
         if activation is not None:
-            layers.append(activation)
             layers.append(nn.BatchNorm1d(c_out))
+            layers.append(activation)
 
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
@@ -67,16 +67,16 @@ class TimeSeriesAutoencoder(nn.Module):
 
         self.flatten = nn.Sequential(
             nn.Flatten(),
-            nn.BatchNorm1d(enc_output_length),
             nn.Linear(enc_output_length, embedding_size),
+            nn.BatchNorm1d(embedding_size),
             nn.GELU(),
             nn.Dropout(0.2),
             nn.Linear(embedding_size, embedding_size)
         )
 
         self.unflatten = nn.Sequential(
-            nn.BatchNorm1d(embedding_size),
             nn.Linear(embedding_size, enc_output_length),
+            nn.BatchNorm1d(enc_output_length),
             nn.GELU(),
             nn.Dropout(0.2)
         )

@@ -13,21 +13,25 @@ import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from utils.clustering import create_img, kmeans, measure_clustering_accuracy
-from utils.embedding_dataset import EmbeddingDataset
+from utils.dataset_loaders import EmbeddingDataset
 
 torch.manual_seed(42)
 mse = nn.MSELoss()
 
 
-def query_ae(model, data):
-    y_hat = model(data.permute(0, 2, 1)).permute(0, 2, 1)
+def query_ae(model, data, noise=None):
+    if noise is not None:
+        y_hat = model((data + noise).permute(0, 2, 1)).permute(0, 2, 1)
+    else:
+        y_hat = model(data.permute(0, 2, 1)).permute(0, 2, 1)
+
     loss = mse(y_hat, data)
     return y_hat, loss
 
 
-def train_ae(model, data, optimizer):
+def train_ae(model, data, optimizer, noise=None):
     optimizer.zero_grad()
-    y_hat, loss = query_ae(model, data)
+    y_hat, loss = query_ae(model, data, noise)
     loss.backward()
     optimizer.step()
     return y_hat, loss
@@ -38,7 +42,8 @@ def train_epoch(model, dataloader, optimizer, device):
     model.train(True)
     for step, data in enumerate(dataloader):
         batch_data = data[0].to(device).float()
-        y_hat, loss = train_ae(model, batch_data, optimizer)
+        noise = torch.rand(batch_data.size()).to(batch_data.device) * 0.1
+        y_hat, loss = train_ae(model, batch_data, optimizer, noise)
         mean_loss.append(loss.item())
     return sum(mean_loss) / len(mean_loss)
 
