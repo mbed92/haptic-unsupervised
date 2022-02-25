@@ -34,9 +34,7 @@ class ClusteringModel(nn.Module):
         return q / torch.sum(q, -1, keepdim=True)
 
     def predict_soft_assignments(self, data):
-        x_emb = self.autoencoder.encoder(data)
-        soft_assignments = self.t_student(x_emb)
-        return soft_assignments
+        return self.t_student(self.autoencoder.encoder(data))
 
     def predict_class(self, data):
         return torch.argmax(self.predict_soft_assignments(data), -1)
@@ -49,13 +47,13 @@ class ClusteringModel(nn.Module):
 
         # find latent vectors
         x, y = utils.dataset.get_total_data_from_dataloader(dataloader)
-        x_emb = self.autoencoder.encoder(x.permute(0, 2, 1).to(device))
+        x_emb = self.autoencoder.encoder(x.permute(0, 2, 1).to(device)).detach()
 
         # taking the best centroid according to the accuracy
         initial_centroids, best_accuracy = None, None
         for i in range(20):
-            kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
-            predictions = torch.Tensor(kmeans.fit_predict(x_emb.detach().cpu().numpy()))
+            kmeans = KMeans(n_clusters=self.num_clusters)
+            predictions = torch.Tensor(kmeans.fit_predict(x_emb.cpu().numpy()))
             initial_accuracy = utils.clustering.clustering_accuracy(y.to(predictions.device), predictions).numpy()
 
             if best_accuracy is None or initial_accuracy > best_accuracy:
@@ -63,8 +61,7 @@ class ClusteringModel(nn.Module):
                 initial_centroids = kmeans.cluster_centers_
 
         # save the best centroids for optimization
-        with torch.no_grad():
-            self.centroids = nn.Parameter(torch.Tensor(initial_centroids).type(torch.float32).to(device))
+        self.centroids.data = torch.Tensor(initial_centroids).type(torch.float32).to(device)
 
 
 def distribution_hardening(q):

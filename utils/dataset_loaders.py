@@ -34,6 +34,6 @@ class EmbeddingDataset(Dataset):
     def gather_embeddings(model: nn.Module, old_dataloader: DataLoader, device: int):
         model.train(False)
         x = torch.cat([y[0] for y in old_dataloader], 0).to(device)
-        x = x.type(torch.float32).permute(0, 2, 1)
-        embeddings = model(x).permute(0, 2, 1)
+        x = x.type(torch.float32)
+        embeddings = model(x.permute(0, 2, 1)).permute(0, 2, 1)
         return DataLoader(EmbeddingDataset(embeddings.detach()), batch_size=old_dataloader.batch_size, shuffle=True)

@@ -13,7 +13,9 @@ from torchvision.transforms import ToTensor
 
 def kmeans(x_train, x_test, expected_num_clusters):
     kmeans = KMeans(n_clusters=expected_num_clusters, n_init=100, max_iter=500)
-    return torch.Tensor(kmeans.fit_predict(x_train)), torch.Tensor(kmeans.predict(x_test))
+    train_result = torch.Tensor(kmeans.fit_predict(x_train))
+    test_result = torch.Tensor(kmeans.predict(x_test))
+    return train_result, test_result
 
 
 def measure_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
