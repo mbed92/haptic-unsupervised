@@ -62,12 +62,12 @@ def create_img(arr1, arr2):
     series2 = [arr2[:, i] for i in range(arr2.shape[-1])]
     t = np.arange(0, arr1.shape[0], 1)
     for s1, s2 in zip(series1, series2):
-        plt.plot(t, s1, 'r')
+        # plt.plot(t, s1, 'r')
         plt.plot(t, s2, 'g')
 
     buf = io.BytesIO()
     plt.savefig(buf, format='png')
     buf.seek(0)
-    plt.close()
+    plt.show()
     image = PIL.Image.open(buf)
     return ToTensor()(image)[:3]

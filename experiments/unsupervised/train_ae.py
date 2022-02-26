@@ -76,45 +76,45 @@ def main(args):
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # setup a model
-    autoencoder = models.TimeSeriesAutoencoder(data_shape, args.embed_size)
+    autoencoder = models.TimeSeriesAutoencoder(data_shape)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     autoencoder.to(device)
     summary(autoencoder, input_size=data_shape)
 
-    # # start pretraining SAE autoencoders
-    # if args.pretrain_sae:
-    #     train_dataloader = deepcopy(main_train_dataloader)
-    #     test_dataloader = deepcopy(main_test_dataloader)
-    #
-    #     for i, sae in enumerate(autoencoder.sae_modules):
-    #         sae_log_dir = os.path.join(log_dir, f'sae{i}')
-    #         sae.set_dropout(args.dropout)
-    #
-    #         with SummaryWriter(log_dir=sae_log_dir) as writer:
-    #             optimizer = torch.optim.AdamW(sae.parameters(), lr=args.lr_sae, weight_decay=args.weight_decay_sae)
-    #             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-    #                                                                    T_max=args.epochs_sae, eta_min=args.eta_min_sae)
-    #
-    #             # run train/test epoch
-    #             for epoch in range(args.epochs_sae):
-    #                 # train epoch
-    #                 train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, device)
-    #                 writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
-    #                 writer.add_scalar('lr/train/SAE', optimizer.param_groups[0]['lr'], epoch)
-    #                 writer.flush()
-    #                 scheduler.step()
-    #
-    #                 # test epoch
-    #                 with torch.no_grad():
-    #                     test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
-    #                     writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
-    #                     writer.flush()
-    #
-    #             # prepare data for the previously trained SAE for the next SAE
-    #             with torch.no_grad():
-    #                 train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
-    #                 test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
+    # start pretraining SAE autoencoders
+    if args.pretrain_sae:
+        train_dataloader = deepcopy(main_train_dataloader)
+        test_dataloader = deepcopy(main_test_dataloader)
+
+        for i, sae in enumerate(autoencoder.sae_modules):
+            sae_log_dir = os.path.join(log_dir, f'sae{i}')
+            sae.set_dropout(args.dropout)
+
+            with SummaryWriter(log_dir=sae_log_dir) as writer:
+                optimizer = torch.optim.AdamW(sae.parameters(), lr=args.lr_sae, weight_decay=args.weight_decay_sae)
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                                       T_max=args.epochs_sae, eta_min=args.eta_min_sae)
+
+                # run train/test epoch
+                for epoch in range(args.epochs_sae):
+                    # train epoch
+                    train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, device)
+                    writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
+                    writer.add_scalar('lr/train/SAE', optimizer.param_groups[0]['lr'], epoch)
+                    writer.flush()
+                    scheduler.step()
+
+                    # test epoch
+                    with torch.no_grad():
+                        test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
+                        writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
+                        writer.flush()
+
+                # prepare data for the previously trained SAE for the next SAE
+                with torch.no_grad():
+                    train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
+                    test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
 
     # train the main autoencoder
     main_log_dir = os.path.join(log_dir, 'full')
@@ -157,11 +157,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=1)
-    parser.add_argument('--epochs-ae', type=int, default=1)
-    parser.add_argument('--batch-size', type=int, default=512)
+    parser.add_argument('--epochs-sae', type=int, default=400)
+    parser.add_argument('--epochs-ae', type=int, default=400)
+    parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--dropout', type=float, default=.2)
-    parser.add_argument('--embed_size', type=int, default=128)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
     parser.add_argument('--lr-ae', type=float, default=1e-3)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
@@ -170,7 +169,7 @@ if __name__ == '__main__':
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
-    parser.set_defaults(pretrain_sae=True)
+    parser.set_defaults(pretrain_sae=False)
 
     args, _ = parser.parse_known_args()
     main(args)

@@ -97,7 +97,7 @@ def main(args):
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = models.ClusteringModel(data_shape, args.embed_size, train_ds.num_classes, device)
+    clust_model = models.ClusteringModel(data_shape, train_ds.num_classes, device)
     clust_model.from_pretrained(args.load_path, train_dataloader, device)
     summary(clust_model, input_size=data_shape)
 
@@ -108,11 +108,13 @@ def main(args):
         pred_train = clust_model.predict_class(x_train.permute(0, 2, 1).to(device)).type(torch.float32)
         pred_test = clust_model.predict_class(x_test.permute(0, 2, 1).to(device)).type(torch.float32)
         measure_clustering_accuracy(y_train, pred_train.cpu(), y_test, pred_test.cpu())
+        print(clust_model.num_clusters)
 
     optimizer = torch.optim.AdamW(clust_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.runs, eta_min=args.eta_min)
 
     # train the clust_model model
+    best_accuracy = 0.0
     with SummaryWriter(log_dir=log_dir) as writer:
         for run in range(args.runs):
             # prepare dataloaders for the next run with updated target distributions
@@ -147,10 +149,12 @@ def main(args):
                     writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), step)
                     writer.flush()
 
-            scheduler.step()
+                    # save the best trained clust_model
+                    if accuracy > best_accuracy:
+                        torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
+                        best_accuracy = accuracy
 
-        # save trained clust_model model
-        torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
+            scheduler.step()
 
     # verify the accuracy after training
     with torch.no_grad():
@@ -170,12 +174,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
-    parser.add_argument('--runs', type=int, default=400)
-    parser.add_argument('--epochs-per-run', type=int, default=3)
+    parser.add_argument('--runs', type=int, default=40)
+    parser.add_argument('--epochs-per-run', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=512)
-    parser.add_argument('--embed_size', type=int, default=128)
-    parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--weight-decay', type=float, default=1e-3)
+    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--weight-decay', type=float, default=1e-5)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/experiments/unsupervised/autoencoder/touching/full/test_model")
