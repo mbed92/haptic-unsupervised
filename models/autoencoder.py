@@ -5,7 +5,7 @@ from models.sae import SAE
 
 class TimeSeriesAutoencoder(nn.Module):
 
-    def __init__(self, data_shape: list):
+    def __init__(self, data_shape: iter):
         super().__init__()
         assert len(data_shape) > 0
 

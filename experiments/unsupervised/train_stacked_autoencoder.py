@@ -7,43 +7,34 @@ import torch.nn as nn
 import yaml
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchsummary import summary
 
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from utils.clustering import create_img, kmeans, measure_clustering_accuracy
 from utils.dataset_loaders import EmbeddingDataset
 
 torch.manual_seed(42)
-mse = nn.MSELoss()
 
 
-def query_ae(model, data, noise=None):
-    if noise is not None:
-        y_hat = model((data + noise).permute(0, 2, 1)).permute(0, 2, 1)
-    else:
-        y_hat = model(data.permute(0, 2, 1)).permute(0, 2, 1)
-
-    loss = mse(y_hat, data)
-    return y_hat, loss
-
-
-def train_ae(model, data, optimizer, noise=None):
-    optimizer.zero_grad()
-    y_hat, loss = query_ae(model, data, noise)
-    loss.backward()
-    optimizer.step()
+def query(model, x):
+    y_hat = model(x.permute(0, 2, 1)).permute(0, 2, 1)
+    loss = nn.MSELoss()(y_hat, x)
     return y_hat, loss
 
 
 def train_epoch(model, dataloader, optimizer, device):
     mean_loss = list()
     model.train(True)
-    for step, data in enumerate(dataloader):
-        batch_data = data[0].to(device).float()
-        y_hat, loss = train_ae(model, batch_data, optimizer)
+
+    # loop over the epoch
+    for data in dataloader:
+        x, _ = data
+        optimizer.zero_grad()
+        y_hat, loss = query(model, x.to(device).float())
+        loss.backward()
+        optimizer.step()
         mean_loss.append(loss.item())
+
     return sum(mean_loss) / len(mean_loss)
 
 
@@ -51,13 +42,18 @@ def test_epoch(model, dataloader, device):
     mean_loss = list()
     exemplary_data = None
     model.train(False)
+
+    # loop over the epoch
     with torch.no_grad():
-        for step, data in enumerate(dataloader):
-            batch_data = data[0].to(device).float()
-            y_hat, loss = query_ae(model, batch_data)
+        for data in dataloader:
+            x, _ = data
+            y_hat, loss = query(model, x.to(device).float())
             mean_loss.append(loss.item())
+
+            # add the reconstruction result to the image
             if exemplary_data is None:
                 exemplary_data = [y_hat[0].detach().cpu().numpy(), data[0][0].detach().cpu().numpy()]
+
     return sum(mean_loss) / len(mean_loss), exemplary_data
 
 
@@ -71,34 +67,35 @@ def main(args):
 
     # load dataset
     train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
-    data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     main_train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # setup a model
+    data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     autoencoder = models.TimeSeriesAutoencoder(data_shape)
+    device = utils.ops.hardware_upload(autoencoder, data_shape)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    autoencoder.to(device)
-    summary(autoencoder, input_size=data_shape)
-
-    # start pretraining SAE autoencoders
+    # start pretraining SAE auto encoders
     if args.pretrain_sae:
         train_dataloader = deepcopy(main_train_dataloader)
         test_dataloader = deepcopy(main_test_dataloader)
 
         for i, sae in enumerate(autoencoder.sae_modules):
-            sae_log_dir = os.path.join(log_dir, f'sae{i}')
-            sae.set_dropout(args.dropout)
 
-            with SummaryWriter(log_dir=sae_log_dir) as writer:
-                optimizer = torch.optim.AdamW(sae.parameters(), lr=args.lr_sae, weight_decay=args.weight_decay_sae)
-                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                                       T_max=args.epochs_sae, eta_min=args.eta_min_sae)
+            # setup backprop config for the full AE
+            backprop_config_sae = utils.ops.BackpropConfig()
+            backprop_config_sae.model = sae
+            backprop_config_sae.lr = args.lr_sae
+            backprop_config_sae.eta_min = args.eta_min_sae
+            backprop_config_sae.epochs = args.epochs_sae
+            backprop_config_sae.weight_decay = args.weight_decay_sae
+
+            with SummaryWriter(log_dir=os.path.join(log_dir, f'sae{i}')) as writer:
+                optimizer, scheduler = utils.ops.backprop_init(backprop_config_sae)
+                sae.set_dropout(args.dropout)
 
                 # run train/test epoch
                 for epoch in range(args.epochs_sae):
-                    # train epoch
                     train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, device)
                     writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
                     writer.add_scalar('lr/train/SAE', optimizer.param_groups[0]['lr'], epoch)
@@ -117,10 +114,16 @@ def main(args):
                     test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
 
     # train the main autoencoder
-    main_log_dir = os.path.join(log_dir, 'full')
-    with SummaryWriter(log_dir=main_log_dir) as writer:
-        optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=args.lr_ae, weight_decay=args.weight_decay_ae)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs_ae, eta_min=args.eta_min_ae)
+    backprop_config_ae = utils.ops.BackpropConfig()
+    backprop_config_ae.model = autoencoder
+    backprop_config_ae.lr = args.lr_ae
+    backprop_config_ae.eta_min = args.eta_min_ae
+    backprop_config_ae.epochs = args.epochs_ae
+    backprop_config_ae.weight_decay = args.weight_decay_ae
+
+    # train
+    with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
+        optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
 
         for epoch in range(args.epochs_ae):
             train_epoch_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)
@@ -133,7 +136,7 @@ def main(args):
             with torch.no_grad():
                 test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
                 writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
-                writer.add_image('image/test/AE', create_img(*exemplary_sample), epoch)
+                writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
                 writer.flush()
 
     # save the trained autoencoder
@@ -146,8 +149,8 @@ def main(args):
         x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
         emb_train = autoencoder.encoder(x_train.permute(0, 2, 1)).numpy()
         emb_test = autoencoder.encoder(x_test.permute(0, 2, 1)).numpy()
-        pred_train, pred_test = kmeans(emb_train, emb_test, train_ds.num_classes)
-        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, train_ds.num_classes)
+        utils.clustering.measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
     utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
@@ -156,7 +159,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/put.yaml")
     parser.add_argument('--epochs-sae', type=int, default=400)
     parser.add_argument('--epochs-ae', type=int, default=400)
     parser.add_argument('--batch-size', type=int, default=128)
