@@ -3,7 +3,7 @@ train_val_directions: [ 'E', 'N', 'S', 'W' ]
 train_val_classes: [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
 test_directions: [ 'C' ]
 test_classes: [ 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
-dataset_folder: "/media/mbed/internal/backup/haptr"
+dataset_folder: "/home/mbed/Projects/datasets"
 dataset_file: "touching.mat"
 signal_length: 192
 signal_start: 0

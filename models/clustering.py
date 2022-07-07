@@ -75,6 +75,5 @@ class ClusteringModel(nn.Module):
 
 
 def distribution_hardening(q):
-    ## P function (hardening)
     p = torch.div(q ** 2, torch.sum(q, 0, keepdim=True))
     return torch.div(p, torch.sum(p, 1, keepdim=True))
