@@ -131,6 +131,8 @@ def main(args):
     backprop_config_ae.weight_decay = args.weight_decay_ae
 
     # train
+    best_loss = 9999.9
+    best_model = None
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
         optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
 
@@ -147,24 +149,28 @@ def main(args):
             writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
             writer.flush()
 
-    # save the trained autoencoder
-    torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+            # save the best autoencoder
+            if test_epoch_loss < best_loss:
+                torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+                best_loss = test_epoch_loss
+                best_model = autoencoder
 
     # verify the unsupervised classification accuracy
-    with torch.no_grad():
-        autoencoder.cpu()
-        x_train, y_train = utils.dataset.get_total_data_from_dataloader(main_train_dataloader)
-        x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
-        emb_train = autoencoder.encoder(x_train.permute(0, 2, 1)).numpy()
-        emb_test = autoencoder.encoder(x_test.permute(0, 2, 1)).numpy()
-        for c in range(2, train_ds.num_classes):
-            print(f"Clustering accuracy for {c} predicted clusters.")
-            pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, c)
-            utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-            print(f"\n")
+    if best_model is not None:
+        with torch.no_grad():
+            best_model.cpu()
+            x_train, y_train = utils.dataset.get_total_data_from_dataloader(main_train_dataloader)
+            x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
+            emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
+            emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
+            for c in range(2, train_ds.num_classes):
+                print(f"Clustering accuracy for {c} expected clusters.")
+                pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, c)
+                utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+                print(f"\n")
 
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
