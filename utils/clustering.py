@@ -18,7 +18,7 @@ def kmeans(x_train, x_test, expected_num_clusters):
     return train_result, test_result
 
 
-def measure_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
+def print_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
     print('===================')
     print('| KMeans train accuracy:', clustering_accuracy(y_train, y_hat_train).numpy(),
           '| KMeans test accuracy:', clustering_accuracy(y_test, y_hat_test).numpy())
