@@ -12,7 +12,7 @@ import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from models.clustering import distribution_hardening
-from utils.clustering import create_img, measure_clustering_accuracy
+from utils.clustering import create_img, print_clustering_accuracy
 from utils.dataset_loaders import ClusteringDataset
 
 torch.manual_seed(42)
@@ -107,7 +107,7 @@ def main(args):
         x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
         pred_train = clust_model.predict_class(x_train.permute(0, 2, 1).to(device)).type(torch.float32)
         pred_test = clust_model.predict_class(x_test.permute(0, 2, 1).to(device)).type(torch.float32)
-        measure_clustering_accuracy(y_train, pred_train.cpu(), y_test, pred_test.cpu())
+        print_clustering_accuracy(y_train, pred_train.cpu(), y_test, pred_test.cpu())
         print(clust_model.num_clusters)
 
     optimizer = torch.optim.AdamW(clust_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -161,7 +161,7 @@ def main(args):
         clust_model.cpu()
         pred_train = clust_model.predict_class(x_train.permute(0, 2, 1)).type(torch.float32)
         pred_test = clust_model.predict_class(x_test.permute(0, 2, 1)).type(torch.float32)
-        measure_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
         # save embeddings
         emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
