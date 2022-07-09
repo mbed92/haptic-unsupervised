@@ -1,22 +1,27 @@
+from math import ceil
+
 import torch.nn as nn
 
 
 class SAE(nn.Module):
-    def __init__(self, c_in: int, c_out: int, stride: int, act_enc: nn.Module, act_dec: nn.Module, dropout: float):
+    def __init__(self,
+                 c_in: int,
+                 c_out: int,
+                 kernel: int = 3,
+                 stride: int = 2,
+                 act_enc: nn.Module = nn.ReLU,
+                 act_dec: nn.Module = nn.ReLU,
+                 dropout: float = 0.0):
+
         super().__init__()
-
-        self.num_chan_in = c_in
-        self.num_chan_out = c_out
-        self.stride = stride
-        self.dropout = dropout
-
-        self.encoder, self.encoder_drop = self.build_encoder(c_in, c_out, act_enc, stride, dropout)
-        self.decoder, self.decoder_drop = self.build_decoder(c_out, c_in, act_dec, stride, dropout)
+        self.encoder, self.encoder_drop = self.build_encoder(c_in, c_out, kernel, act_enc, stride, dropout)
+        self.decoder, self.decoder_drop = self.build_decoder(c_out, c_in, kernel, act_dec, stride, dropout)
 
     @staticmethod
-    def build_encoder(c_in, c_out, activation, stride, dropout):
+    def build_encoder(c_in, c_out, kernel, activation, stride, dropout):
         layers = list()
-        layers.append(nn.Conv1d(c_in, c_out, 7, stride, padding=3))
+        padding = ceil(kernel / 2) - 1
+        layers.append(nn.Conv1d(c_in, c_out, kernel, stride, padding=padding))
 
         if activation is not None:
             layers.append(nn.BatchNorm1d(c_out))
@@ -25,9 +30,11 @@ class SAE(nn.Module):
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
     @staticmethod
-    def build_decoder(c_in, c_out, activation, stride, dropout):
+    def build_decoder(c_in, c_out, kernel, activation, stride, dropout):
         layers = list()
-        layers.append(nn.ConvTranspose1d(c_in, c_out, 7, stride, padding=3, output_padding=stride - 1))
+        padding = ceil(kernel / 2) - 1
+        layers.append(nn.ConvTranspose1d(c_in, c_out, kernel, stride,
+                                         padding=padding, output_padding=stride - 1))
 
         if activation is not None:
             layers.append(nn.BatchNorm1d(c_out))

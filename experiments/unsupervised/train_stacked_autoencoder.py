@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
+from models.autoencoder import TimeSeriesAutoencoderConfig
 from utils.dataset_loaders import EmbeddingDataset
 
 torch.manual_seed(42)
@@ -70,10 +71,17 @@ def main(args):
     main_train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
-    # setup a model
-    data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
-    autoencoder = models.TimeSeriesAutoencoder(data_shape)
-    device = utils.ops.hardware_upload(autoencoder, data_shape)
+    # set up a model (find the best config)
+    nn_params = TimeSeriesAutoencoderConfig()
+    nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
+    nn_params.stride = 2
+    nn_params.kernel = 3
+    nn_params.activation = nn.ReLU()
+    nn_params.dropout = 0.2
+    nn_params.num_heads = 1
+    nn_params.use_attention = True
+    autoencoder = models.TimeSeriesAutoencoder(nn_params)
+    device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # start pretraining SAE auto encoders
     if args.pretrain_sae:
@@ -103,15 +111,13 @@ def main(args):
                     scheduler.step()
 
                     # test epoch
-                    with torch.no_grad():
-                        test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
-                        writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
-                        writer.flush()
+                    test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
+                    writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
+                    writer.flush()
 
                 # prepare data for the previously trained SAE for the next SAE
-                with torch.no_grad():
-                    train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
-                    test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
+                train_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, train_dataloader, device)
+                test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
 
     # train the main autoencoder
     backprop_config_ae = utils.ops.BackpropConfig()
@@ -133,11 +139,10 @@ def main(args):
             scheduler.step()
 
             # test epoch
-            with torch.no_grad():
-                test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
-                writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
-                writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
-                writer.flush()
+            test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
+            writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
+            writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
+            writer.flush()
 
     # save the trained autoencoder
     torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
@@ -160,19 +165,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/put.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=400)
-    parser.add_argument('--epochs-ae', type=int, default=400)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--epochs-sae', type=int, default=1)
+    parser.add_argument('--epochs-ae', type=int, default=5000)
+    parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=.2)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=1e-3)
+    parser.add_argument('--lr-ae', type=float, default=5e-4)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
     parser.add_argument('--weight-decay-ae', type=float, default=1e-3)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
-    parser.set_defaults(pretrain_sae=False)
+    parser.set_defaults(pretrain_sae=True)
 
     args, _ = parser.parse_known_args()
     main(args)
