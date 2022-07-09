@@ -32,8 +32,8 @@ class EmbeddingDataset(Dataset):
 
     @staticmethod
     def gather_embeddings(model: nn.Module, old_dataloader: DataLoader, device: int):
-        model.train(False)
-        x = torch.cat([y[0] for y in old_dataloader], 0).to(device)
-        x = x.type(torch.float32)
-        embeddings = model(x.permute(0, 2, 1)).permute(0, 2, 1)
-        return DataLoader(EmbeddingDataset(embeddings.detach()), batch_size=old_dataloader.batch_size, shuffle=True)
+        with torch.no_grad():
+            x = [torch.FloatTensor(sample[0]) for sample in old_dataloader.dataset]
+            x = torch.stack(x, 0)
+            embeddings = model(x.permute(0, 2, 1).to(device)).permute(0, 2, 1)
+        return DataLoader(EmbeddingDataset(embeddings.cpu()), batch_size=old_dataloader.batch_size, shuffle=True)
