@@ -26,7 +26,7 @@ def query(model, x):
     return y_hat, loss
 
 
-def train_epoch(model, dataloader, optimizer, device):
+def train_epoch(model, dataloader, optimizer, device, clip_grad_norm=False):
     mean_loss = list()
     model.train(True)
 
@@ -36,6 +36,12 @@ def train_epoch(model, dataloader, optimizer, device):
         optimizer.zero_grad()
         y_hat, loss = query(model, x.to(device).float())
         loss.backward()
+
+        if clip_grad_norm:
+            for p in model.parameters():
+                if p.grad.norm() > 10:
+                    torch.nn.utils.clip_grad_norm_(p, 10)
+
         optimizer.step()
         mean_loss.append(loss.item())
 
