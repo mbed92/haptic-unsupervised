@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.autoencoder import LSTMAutoencoderConfig
+from models.autoencoder import RCNNAutoencoderConfig
 from train_stacked_autoencoder import train_epoch, test_epoch
 
 torch.manual_seed(42)
@@ -29,14 +29,15 @@ def main(args):
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # set up a model (find the best config)
-    nn_params = LSTMAutoencoderConfig()
+    nn_params = RCNNAutoencoderConfig()
     nn_params.input_num_channels = train_ds.mean.shape[-1]
     nn_params.sequence_length = train_ds.signal_length
-    nn_params.latent_dim = 30
+    nn_params.latent_dim = 64
     nn_params.num_layers = 10
+    nn_params.hidden_units = 256
     nn_params.kernel = 3
     nn_params.dropout = 0.3
-    autoencoder = models.LSTMAutoencoder(nn_params)
+    autoencoder = models.RCNNAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, (nn_params.sequence_length, nn_params.input_num_channels))
 
     # train the main autoencoder

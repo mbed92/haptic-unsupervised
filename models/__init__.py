@@ -1,2 +1,2 @@
-from .autoencoder import TimeSeriesAutoencoder, TimeSeriesAutoencoderConfig, LSTMAutoencoder, LSTMAutoencoderConfig
+from .autoencoder import TimeSeriesAutoencoder, TimeSeriesAutoencoderConfig, RCNNAutoencoder, RCNNAutoencoderConfig
 from .clustering import ClusteringModel

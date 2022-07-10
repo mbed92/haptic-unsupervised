@@ -43,8 +43,8 @@ class SAE(nn.Module):
         return nn.Sequential(*layers), nn.Dropout(dropout)
 
     def forward(self, inputs):
-        x = self.encoder(self.encoder_drop(inputs))
-        return self.decoder(self.decoder_drop(x))
+        x = self.encoder_drop(self.encoder(inputs))
+        return self.decoder_drop(self.decoder(x))
 
     def set_dropout(self, rate):
         assert 0.0 <= rate < 1.0
