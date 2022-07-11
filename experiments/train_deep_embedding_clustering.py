@@ -11,11 +11,12 @@ from torchsummary import summary
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.clustering import distribution_hardening
+from models.dec.clustering import distribution_hardening
 from utils.clustering import create_img, print_clustering_accuracy
-from utils.dataset_loaders import ClusteringDataset
+from data.clustering_dataset import ClusteringDataset
 
 torch.manual_seed(42)
+NUM_CLUSTER = 8
 
 
 def query_clust(model, inputs, target_distribution):
@@ -104,99 +105,97 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = data.dataset.load_dataset(config)
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # check performance for a different number of clusters
-    x_train, y_train = utils.dataset.get_total_data_from_dataloader(train_dataloader)
-    x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
+    x_train, y_train = data.dataset.get_total_data_from_dataloader(train_dataloader)
+    x_test, y_test = data.dataset.get_total_data_from_dataloader(test_dataloader)
 
-    for num_clusters in range(2, train_ds.num_classes):
+    # setup a model
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    clust_model = models.ClusteringModel(NUM_CLUSTER, device)
+    clust_model.from_pretrained(args.load_path, train_dataloader, device)
+    summary(clust_model, input_size=data_shape)
 
-        # setup a model
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        clust_model = models.ClusteringModel(num_clusters, device)
-        clust_model.from_pretrained(args.load_path, train_dataloader, device)
-        summary(clust_model, input_size=data_shape)
+    # setup optimizer
+    backprop_config = utils.ops.BackpropConfig()
+    backprop_config.optimizer = torch.optim.AdamW
+    backprop_config.model = clust_model
+    backprop_config.lr = args.lr
+    backprop_config.eta_min = args.eta_min
+    backprop_config.epochs = args.epochs_per_run * args.runs
+    backprop_config.weight_decay = args.weight_decay
+    optimizer, scheduler = utils.ops.backprop_init(backprop_config)
 
-        # setup optimizer
-        backprop_config = utils.ops.BackpropConfig()
-        backprop_config.optimizer = torch.optim.AdamW
-        backprop_config.model = clust_model
-        backprop_config.lr = args.lr
-        backprop_config.eta_min = args.eta_min
-        backprop_config.epochs = args.epochs_per_run
-        backprop_config.weight_decay = args.weight_decay
-        optimizer, scheduler = utils.ops.backprop_init(backprop_config)
+    # train the clust_model model
+    best_clustering_accuracy = 0.0
+    log_dir_new = utils_haptr.log.logdir_name(log_dir, f'num_clust_{NUM_CLUSTER}')
+    with SummaryWriter(log_dir=log_dir_new) as writer:
+        for run in range(args.runs):
 
-        # train the clust_model model
-        best_clustering_accuracy = 0.0
-        log_dir = utils_haptr.log.logdir_name(log_dir, f'num_clust_{num_clusters}')
-        with SummaryWriter(log_dir=log_dir) as writer:
-            for run in range(args.runs):
+            train_dataloader = update_distribution(clust_model, train_dataloader, device)
+            test_dataloader = update_distribution(clust_model, test_dataloader, device)
 
-                train_dataloader = update_distribution(clust_model, train_dataloader, device)
-                test_dataloader = update_distribution(clust_model, test_dataloader, device)
+            for epoch in range(args.epochs_per_run):
+                step = run * args.epochs_per_run + epoch
 
-                for epoch in range(args.epochs_per_run):
-                    step = run * args.epochs_per_run + epoch
+                # train epoch
+                recon_loss, clust_loss, accuracy = train_epoch(clust_model, train_dataloader, optimizer, device)
+                writer.add_scalar('loss/train/recon_loss', recon_loss, step)
+                writer.add_scalar('loss/train/cluster_loss', clust_loss, step)
+                writer.add_scalar('loss/train/accuracy', accuracy, step)
+                writer.add_scalar('lr/train', optimizer.param_groups[0]['lr'], step)
+                writer.flush()
 
-                    # train epoch
-                    recon_loss, clust_loss, accuracy = train_epoch(clust_model, train_dataloader, optimizer, device)
-                    writer.add_scalar('loss/train/recon_loss', recon_loss, step)
-                    writer.add_scalar('loss/train/cluster_loss', clust_loss, step)
-                    writer.add_scalar('loss/train/accuracy', accuracy, step)
-                    writer.add_scalar('lr/train', optimizer.param_groups[0]['lr'], step)
+                # test epoch
+                with torch.no_grad():
+                    recon_loss, clust_loss, accuracy, exemplary_sample = test_epoch(clust_model,
+                                                                                    test_dataloader,
+                                                                                    device)
+                    writer.add_scalar('loss/test/recon_loss', recon_loss, step)
+                    writer.add_scalar('loss/test/cluster_loss', clust_loss, step)
+                    writer.add_scalar('loss/test/accuracy', accuracy, step)
+                    writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), step)
                     writer.flush()
 
-                    # test epoch
-                    with torch.no_grad():
-                        recon_loss, clust_loss, accuracy, exemplary_sample = test_epoch(clust_model,
-                                                                                        test_dataloader,
-                                                                                        device)
-                        writer.add_scalar('loss/test/recon_loss', recon_loss, step)
-                        writer.add_scalar('loss/test/cluster_loss', clust_loss, step)
-                        writer.add_scalar('loss/test/accuracy', accuracy, step)
-                        writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), step)
-                        writer.flush()
+                    # save the best trained clust_model
+                    if accuracy > best_clustering_accuracy:
+                        torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
+                        best_clustering_accuracy = accuracy
 
-                        # save the best trained clust_model
-                        if accuracy > best_clustering_accuracy:
-                            torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
-                            best_clustering_accuracy = accuracy
+            scheduler.step()
 
-                scheduler.step()
+    # verify the accuracy after training
+    with torch.no_grad():
+        clust_model.cpu()
+        pred_train = clust_model.predict_class(x_train.permute(0, 2, 1)).type(torch.float32)
+        pred_test = clust_model.predict_class(x_test.permute(0, 2, 1)).type(torch.float32)
+        print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
-        # verify the accuracy after training
-        with torch.no_grad():
-            clust_model.cpu()
-            pred_train = clust_model.predict_class(x_train.permute(0, 2, 1)).type(torch.float32)
-            pred_test = clust_model.predict_class(x_test.permute(0, 2, 1)).type(torch.float32)
-            print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-
-            # save embeddings
-            emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
-            emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train_{num_clusters}'),
-                                             emb_train, y_train, writer)
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test_{num_clusters}'),
-                                             emb_test, y_test, writer, 1)
+        # save embeddings
+        emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
+        emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train_{NUM_CLUSTER}'),
+                                         emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test_{NUM_CLUSTER}'),
+                                         emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/put.yaml")
-    parser.add_argument('--runs', type=int, default=50)
-    parser.add_argument('--epochs-per-run', type=int, default=50)
+                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
+    parser.add_argument('--runs', type=int, default=100)
+    parser.add_argument('--epochs-per-run', type=int, default=20)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/put/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/touching/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)

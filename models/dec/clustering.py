@@ -10,7 +10,7 @@ N_INITIAL_TRIALS = 30
 
 class ClusteringModel(nn.Module):
 
-    def __init__(self, num_clusters: int, device, alpha=1.0):
+    def __init__(self, num_clusters: int, device, alpha=95.0):
         super().__init__()
 
         self.num_clusters = num_clusters
@@ -48,6 +48,10 @@ class ClusteringModel(nn.Module):
         self.autoencoder = torch.load(model_path)
         self.autoencoder.to(device)
 
+        # freeze decoder
+        for sae in self.autoencoder.sae_modules:
+            sae.decoder.requires_grad = False
+
         # remove regularization (dropout and batchnorm)
         for m in self.autoencoder.modules():
             if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.Dropout):
@@ -74,7 +78,8 @@ class ClusteringModel(nn.Module):
                 for i in range(N_INITIAL_TRIALS):
                     kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
                     predictions = torch.Tensor(kmeans.fit_predict(x_emb.cpu().numpy()))
-                    initial_accuracy = utils.clustering.clustering_accuracy(y.to(predictions.device), predictions).numpy()
+                    initial_accuracy = utils.clustering.clustering_accuracy(y.to(predictions.device),
+                                                                            predictions).numpy()
 
                     if best_accuracy is None or initial_accuracy > best_accuracy:
                         best_accuracy = initial_accuracy
@@ -92,8 +97,3 @@ class ClusteringModel(nn.Module):
             emb_size = self.autoencoder.encoder(x).shape[-1]
             self.centroids = nn.Parameter(torch.rand([self.num_clusters, emb_size]).to(device))
             nn.init.xavier_uniform_(self.centroids)
-
-
-def distribution_hardening(q):
-    p = torch.div(q ** 2, torch.sum(q, 0, keepdim=True))
-    return torch.div(p, torch.sum(p, 1, keepdim=True))

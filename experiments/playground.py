@@ -27,7 +27,7 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, _, test_ds = utils.dataset.load_dataset(config)
+    train_ds, _, test_ds = data.dataset.load_dataset(config)
 
     # load a model
     with torch.no_grad():
