@@ -31,7 +31,7 @@ def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     shape = (
         num_samples, int(torch.max(y_pred).item()) + 1, int(torch.max(y_true).item()) + 1)  # classes ordered from 0
     sample_idx = torch.arange(num_samples).to(y_pred.device)
-    indices = torch.stack([sample_idx, y_pred, y_true], 1).type(torch.int64)
+    indices = torch.stack([sample_idx, y_pred, y_true], 1)
     data = torch.zeros(shape, dtype=torch.float32)
     data[indices[:, 0], indices[:, 1], indices[:, 2]] = 1.0  # scatter_nd
     data = data.sum(0)

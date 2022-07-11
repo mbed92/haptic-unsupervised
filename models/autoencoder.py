@@ -63,16 +63,18 @@ class TimeSeriesAutoencoder(nn.Module):
         assert len(cfg.data_shape) == 2
 
         sig_length, num_channels = cfg.data_shape
-        self.sae1 = SAE(num_channels, 16, cfg.kernel, cfg.stride, cfg.activation, None)  # reconstructs
-        self.sae2 = SAE(16, 32, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
-        self.sae3 = SAE(32, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
-        self.sae4 = SAE(64, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae1 = SAE(num_channels, 32, cfg.kernel, cfg.stride, cfg.activation, None)  # reconstructs
+        self.sae2 = SAE(32, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae3 = SAE(64, 128, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae4 = SAE(128, 16, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
         self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4]
 
-        # self attention layer
         embedding_size = int(sig_length / (cfg.stride ** len(self.sae_modules)))
         self.attention_layer = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=1,
                                                      dropout=0.2) if cfg.use_attention else None
+
+        self.downsample = nn.Linear(16 * embedding_size, embedding_size)
+        self.upsample = nn.Linear(embedding_size, 16 * embedding_size)
 
     def encoder(self, x):
         x = self.sae1.encoder(x)
@@ -84,10 +86,11 @@ class TimeSeriesAutoencoder(nn.Module):
             x_attn, _ = self.attention_layer(x, x, x)
             x = x + x_attn
 
-        return x.reshape((x.shape[0], -1))
+        x = self.downsample(x.reshape((x.shape[0], -1)))
+        return x
 
     def decoder(self, x):
-        x = x.view(x.shape[0], 64, -1)
+        x = self.upsample(x).reshape((x.shape[0], 16, -1))
         x = self.sae4.decoder(x)
         x = self.sae3.decoder(x)
         x = self.sae2.decoder(x)

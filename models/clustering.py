@@ -1,23 +1,23 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from sklearn.cluster import KMeans
+from torch.utils.data import DataLoader
 
 import utils
-from models import TimeSeriesAutoencoder
 
 N_INITIAL_TRIALS = 30
 
 
 class ClusteringModel(nn.Module):
 
-    def __init__(self, data_shape: list, num_clusters: int, device, alpha=10.0):
+    def __init__(self, num_clusters: int, device, alpha=1.0):
         super().__init__()
 
         self.num_clusters = num_clusters
         self.alpha = alpha
-        self.autoencoder = TimeSeriesAutoencoder(data_shape)
+        self.autoencoder = None
         self.centroids = nn.Parameter(torch.rand([self.num_clusters, 10]).to(device))
+        nn.init.xavier_uniform_(self.centroids)
 
     def forward(self, inputs):
         x = self.autoencoder.encoder(inputs)
@@ -30,11 +30,11 @@ class ClusteringModel(nn.Module):
         }
 
     def t_student(self, x):
-        # dist = torch.linalg.norm(x[:, None] - self.centroids, dim=-1)
-        dist = torch.abs(F.cosine_similarity(x[:, None], self.centroids, dim=-1))
+        dist = x[:, None] - self.centroids[None, :]
+        dist = torch.linalg.norm(dist, dim=-1)
         q = 1.0 / (1.0 + dist / self.alpha)
         q = torch.pow(q, (self.alpha + 1.0) / 2.0)
-        a = torch.sum(q, -1, keepdim=True)
+        a = torch.sum(q, 1, keepdim=True)
         return q / a
 
     def predict_soft_assignments(self, data):
@@ -43,7 +43,7 @@ class ClusteringModel(nn.Module):
     def predict_class(self, data):
         return torch.argmax(self.predict_soft_assignments(data), -1)
 
-    def from_pretrained(self, model_path, dataloader, device):
+    def from_pretrained(self, model_path, dataloader: DataLoader, device, best_centroids=True):
         # centroids initialization
         self.autoencoder = torch.load(model_path)
         self.autoencoder.to(device)
@@ -53,25 +53,45 @@ class ClusteringModel(nn.Module):
             if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.Dropout):
                 m.eval()
 
-        # find latent vectors
-        with torch.no_grad():
-            x, y = utils.dataset.get_total_data_from_dataloader(dataloader)
-            x_emb = self.autoencoder.encoder(x.permute(0, 2, 1).to(device))
+        # fit the best centroids
+        if best_centroids:
+            with torch.no_grad():
 
-            # taking the best centroid according to the accuracy
-            initial_centroids, best_accuracy = None, None
+                # find latent vectors
+                x_emb, y = list(), list()
+                for data in dataloader:
+                    x = data[0].to(device).permute(0, 2, 1).float()
+                    emb = self.autoencoder.encoder(x)
+                    x_emb.append(emb)
+                    y.append(data[1])
 
-            for i in range(N_INITIAL_TRIALS):
-                kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
-                predictions = torch.Tensor(kmeans.fit_predict(x_emb.cpu().numpy()))
-                initial_accuracy = utils.clustering.clustering_accuracy(y.to(predictions.device), predictions).numpy()
+                # taking the best centroid according to the accuracy
+                x_emb = torch.concat(x_emb, 0)
+                y = torch.concat(y, 0)
 
-                if best_accuracy is None or initial_accuracy > best_accuracy:
-                    best_accuracy = initial_accuracy
-                    initial_centroids = kmeans.cluster_centers_
+                # initialize centroids
+                initial_centroids, best_accuracy = None, None
+                for i in range(N_INITIAL_TRIALS):
+                    kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
+                    predictions = torch.Tensor(kmeans.fit_predict(x_emb.cpu().numpy()))
+                    initial_accuracy = utils.clustering.clustering_accuracy(y.to(predictions.device), predictions).numpy()
 
-        # save the best centroids for optimization
-        self.centroids.data = torch.Tensor(initial_centroids).type(torch.float32).to(device)
+                    if best_accuracy is None or initial_accuracy > best_accuracy:
+                        best_accuracy = initial_accuracy
+                        initial_centroids = kmeans.cluster_centers_
+
+                self.centroids.data = torch.Tensor(initial_centroids).to(device)
+
+            # save the best centroids for optimization
+            print(f"Best initial accuracy: {best_accuracy}")
+        else:
+            # verify the size of embeddings
+            data = dataloader.dataset[0]
+            x = torch.Tensor(data[0])[None, :]
+            x = x.to(device).permute(0, 2, 1).float()
+            emb_size = self.autoencoder.encoder(x).shape[-1]
+            self.centroids = nn.Parameter(torch.rand([self.num_clusters, emb_size]).to(device))
+            nn.init.xavier_uniform_(self.centroids)
 
 
 def distribution_hardening(q):

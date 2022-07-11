@@ -82,13 +82,14 @@ def main(args):
 
     # set up a model (find the best config)
     nn_params = TimeSeriesAutoencoderConfig()
+    nn_params.optimizer = torch.optim.AdamW
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     nn_params.stride = 2
     nn_params.kernel = 7
     nn_params.activation = nn.ReLU()
     nn_params.dropout = 0.3917794526568489
     nn_params.num_heads = 1
-    nn_params.use_attention = True
+    nn_params.use_attention = False
     autoencoder = models.TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -101,6 +102,7 @@ def main(args):
 
             # setup backprop config for the full AE
             backprop_config_sae = utils.ops.BackpropConfig()
+            backprop_config_sae.optimizer = torch.optim.AdamW
             backprop_config_sae.model = sae
             backprop_config_sae.lr = args.lr_sae
             backprop_config_sae.eta_min = args.eta_min_sae
@@ -131,6 +133,7 @@ def main(args):
     # train the main autoencoder
     backprop_config_ae = utils.ops.BackpropConfig()
     backprop_config_ae.model = autoencoder
+    backprop_config_ae.optimizer = torch.optim.AdamW
     backprop_config_ae.lr = args.lr_ae
     backprop_config_ae.eta_min = args.eta_min_ae
     backprop_config_ae.epochs = args.epochs_ae
@@ -169,14 +172,14 @@ def main(args):
             x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
             emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
             emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+
             for c in range(2, train_ds.num_classes):
                 print(f"Clustering accuracy for {c} expected clusters.")
                 pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, c)
                 utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
                 print(f"\n")
-
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
