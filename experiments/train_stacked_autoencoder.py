@@ -46,7 +46,7 @@ def train_epoch(model, dataloader, optimizer, device, clip_grad_norm=False):
 
 def test_epoch(model, dataloader, device):
     mean_loss = list()
-    exemplary_data = None
+    exemplary_sample = None
     model.train(False)
 
     # loop over the epoch
@@ -57,10 +57,12 @@ def test_epoch(model, dataloader, device):
             mean_loss.append(loss.item())
 
             # add the reconstruction result to the image
-            if exemplary_data is None:
-                exemplary_data = [y_hat[0].detach().cpu().numpy(), data[0][0].detach().cpu().numpy()]
+            if exemplary_sample is None:
+                y_pred = y_hat[0].detach().cpu().numpy()
+                y_true = data[0][0].detach().cpu().numpy()
+                exemplary_sample = [y_pred, y_true]
 
-    return sum(mean_loss) / len(mean_loss), exemplary_data
+    return sum(mean_loss) / len(mean_loss), exemplary_sample
 
 
 def main(args):

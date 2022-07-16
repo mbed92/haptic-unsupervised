@@ -69,8 +69,9 @@ def test_epoch(model, dataloader, device):
             accuracy.append(acc.item())
 
             if exemplary_sample is None:
-                exemplary_sample = [batch_data[0].detach().cpu().numpy(),
-                                    y_hat['reconstruction'][0].permute(1, 0).detach().cpu().numpy()]
+                y_pred = y_hat['reconstruction'][0].permute(1, 0).detach().cpu().numpy()
+                y_true = batch_data[0].detach().cpu().numpy()
+                exemplary_sample = [y_pred, y_true]
 
     return sum(mean_recon_loss) / len(mean_recon_loss), \
            sum(mean_cluster_loss) / len(mean_cluster_loss), \
