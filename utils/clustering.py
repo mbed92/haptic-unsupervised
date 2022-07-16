@@ -5,8 +5,11 @@ import PIL
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor
+
+from utils.metrics import clustering_accuracy
 
 
 def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,
@@ -16,7 +19,8 @@ def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, wri
 
     # Save Labels separately on a line-by-line manner.
     with open(os.path.join(log_dir, f'metadata_{global_step}.tsv'), "w") as f:
-        for label in labels: f.write(f'{label}\n')
+        for label in labels:
+            f.write(f'{label}\n')
 
     torch.save({"embedding": embeddings}, os.path.join(log_dir, f"embeddings_{global_step}"))
     writer.add_embedding(embeddings, labels, global_step=global_step)
@@ -43,3 +47,17 @@ def create_img(arr1, arr2):
 def distribution_hardening(q):
     p = torch.div(q ** 2, torch.sum(q, 0, keepdim=True))
     return torch.div(p, torch.sum(p, 1, keepdim=True))
+
+
+def kmeans(x_train, x_test, expected_num_clusters):
+    kmeans = KMeans(n_clusters=expected_num_clusters, n_init=100, max_iter=500)
+    train_result = torch.Tensor(kmeans.fit_predict(x_train))
+    test_result = torch.Tensor(kmeans.predict(x_test))
+    return train_result, test_result
+
+
+def print_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
+    print('===================')
+    print('| KMeans train accuracy:', clustering_accuracy(y_train, y_hat_train).numpy(),
+          '| KMeans test accuracy:', clustering_accuracy(y_test, y_hat_test).numpy())
+    print('===================')

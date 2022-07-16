@@ -1,6 +1,6 @@
 import argparse
+import copy
 import os
-from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -93,8 +93,8 @@ def main(args):
 
     # start pretraining SAE auto encoders
     if args.pretrain_sae:
-        train_dataloader = deepcopy(main_train_dataloader)
-        test_dataloader = deepcopy(main_test_dataloader)
+        train_dataloader = copy.deepcopy(main_train_dataloader)
+        test_dataloader = copy.deepcopy(main_test_dataloader)
 
         for i, sae in enumerate(autoencoder.sae_modules):
 
@@ -160,20 +160,19 @@ def main(args):
             if test_epoch_loss < best_loss:
                 torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
                 best_loss = test_epoch_loss
-                best_model = autoencoder
+                best_model = copy.deepcopy(autoencoder)
 
     # verify the unsupervised classification accuracy
     if best_model is not None:
-        with torch.no_grad():
-            best_model.cpu()
-            x_train, y_train = helpers.get_total_data_from_dataloader(main_train_dataloader)
-            x_test, y_test = helpers.get_total_data_from_dataloader(main_test_dataloader)
-            emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
-            emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
-            pred_train, pred_test = utils.metrics.kmeans(emb_train, emb_test, train_ds.num_classes)
-            utils.metrics.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        best_model.cpu()
+        x_train, y_train = helpers.get_total_data_from_dataloader(main_train_dataloader)
+        x_test, y_test = helpers.get_total_data_from_dataloader(main_test_dataloader)
+        emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
+        emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+        pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, train_ds.num_classes)
+        utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
 
 if __name__ == '__main__':

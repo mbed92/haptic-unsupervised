@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from sklearn.cluster import KMeans
-from torch.utils.data import DataLoader
 
 from utils.metrics import clustering_accuracy
 
@@ -43,56 +42,41 @@ class ClusteringModel(nn.Module):
     def predict_class(self, data):
         return torch.argmax(self.predict_soft_assignments(data), -1)
 
-    def from_pretrained(self, model_path, dataloader: DataLoader, device, best_centroids=True):
+    def from_pretrained(self, model_path: str, input_samples: torch.Tensor, true_labels: torch.Tensor,
+                        device: torch.device, best_centroids: bool = True):
         # centroids initialization
-        self.autoencoder = torch.load(model_path)
-        self.autoencoder.to(device)
+        self.autoencoder = torch.load(model_path).cpu()
 
-        # freeze decoder
-        for sae in self.autoencoder.sae_modules:
-            sae.decoder.requires_grad = False
-
-        # remove regularization (dropout and batchnorm)
-        for m in self.autoencoder.modules():
-            if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.Dropout):
-                m.eval()
+        # # remove regularization (dropout and batchnorm)
+        # for m in self.autoencoder.modules():
+        #     if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.Dropout):
+        #         m.eval()
 
         # fit the best centroids
+        x = input_samples.permute(0, 2, 1).float()
         if best_centroids:
             with torch.no_grad():
-
-                # find latent vectors
-                x_emb, y = list(), list()
-                for data in dataloader:
-                    x = data[0].to(device).permute(0, 2, 1).float()
-                    emb = self.autoencoder.encoder(x)
-                    x_emb.append(emb)
-                    y.append(data[1])
-
-                # taking the best centroid according to the accuracy
-                x_emb = torch.concat(x_emb, 0)
-                y = torch.concat(y, 0)
+                embeddings = self.autoencoder.encoder(x)
 
                 # initialize centroids
                 initial_centroids, best_accuracy = None, None
                 for i in range(N_INITIAL_TRIALS):
                     kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
-                    predictions = torch.Tensor(kmeans.fit_predict(x_emb.cpu().numpy()))
-                    initial_accuracy = clustering_accuracy(y.to(predictions.device), predictions).numpy()
+                    predictions = torch.Tensor(kmeans.fit_predict(embeddings.numpy()))
+                    initial_accuracy = clustering_accuracy(true_labels, predictions).numpy()
 
                     if best_accuracy is None or initial_accuracy > best_accuracy:
                         best_accuracy = initial_accuracy
                         initial_centroids = kmeans.cluster_centers_
 
-                self.centroids.data = torch.Tensor(initial_centroids).to(device)
-
-            # save the best centroids for optimization
+                self.centroids.data = torch.Tensor(initial_centroids)
             print(f"Best initial accuracy: {best_accuracy}")
         else:
-            # verify the size of embeddings
-            data = dataloader.dataset[0]
-            x = torch.Tensor(data[0])[None, :]
-            x = x.to(device).permute(0, 2, 1).float()
-            emb_size = self.autoencoder.encoder(x).shape[-1]
-            self.centroids = nn.Parameter(torch.rand([self.num_clusters, emb_size]).to(device))
+            embeddings_size = self.autoencoder.encoder(x).shape[-1]
+            self.centroids = nn.Parameter(torch.rand([self.num_clusters, embeddings_size]))
             nn.init.xavier_uniform_(self.centroids)
+
+        # upload the model and centroid to the device again
+        self.centroids.to(device)
+        self.autoencoder.to(device)
+        self.to(device)
