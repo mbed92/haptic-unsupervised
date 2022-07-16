@@ -11,29 +11,26 @@ from torchsummary import summary
 import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.clustering import distribution_hardening
+from models.dec.clustering import distribution_hardening
 from utils.clustering import create_img, print_clustering_accuracy
-from utils.dataset_loaders import ClusteringDataset
+from data.clustering_dataset import ClusteringDataset
 
 torch.manual_seed(42)
-mse = nn.MSELoss()
-kl = nn.KLDivLoss(reduction='batchmean')
+NUM_CLUSTER = 8
 
 
-def query_clust(model, inputs, target_distribution, noise=None):
-    if noise is not None:
-        outputs = model((inputs + noise).permute(0, 2, 1))
-    else:
-        outputs = model(inputs.permute(0, 2, 1))
+def query_clust(model, inputs, target_distribution):
+    outputs = model(inputs.permute(0, 2, 1))
+    reconstruction_loss = nn.MSELoss()(outputs['reconstruction'].permute(0, 2, 1), inputs)
 
-    reconstruction_loss = mse(outputs['reconstruction'].permute(0, 2, 1), inputs)
-    clustering_loss = kl(outputs['assignments'].log(), target_distribution)
+    log_probs_input = outputs['assignments'].log()
+    clustering_loss = nn.KLDivLoss(reduction="batchmean")(log_probs_input, target_distribution)
     return outputs, reconstruction_loss, clustering_loss
 
 
-def train_clust(model, inputs, target_distribution, optimizer, noise=None):
+def train_clust(model, inputs, target_distribution, optimizer):
     optimizer.zero_grad()
-    outputs, reconstruction_loss, clustering_loss = query_clust(model, inputs, target_distribution, noise)
+    outputs, reconstruction_loss, clustering_loss = query_clust(model, inputs, target_distribution)
     loss = reconstruction_loss + clustering_loss
     loss.backward()
     optimizer.step()
@@ -81,6 +78,24 @@ def test_epoch(model, dataloader, device):
            exemplary_sample
 
 
+def update_distribution(model, dataloader: DataLoader, device):
+    with torch.no_grad():
+        x, y = list(), list()
+        probs = list()
+        for data in dataloader:
+            inputs = data[0].permute(0, 2, 1).to(device).float()
+            p = distribution_hardening(model.predict_soft_assignments(inputs))
+
+            probs.append(p)
+            x.append(data[0])
+            y.append(data[1])
+
+        probs = torch.cat(probs, 0)
+        x = torch.cat(x, 0).float()
+        y = torch.cat(y, 0)
+        return ClusteringDataset.with_target_probs(x, y, probs, batch_size=dataloader.batch_size)
+
+
 def main(args):
     log_dir = utils_haptr.log.logdir_name('./', 'clust_model')
     utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
@@ -90,42 +105,39 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = data.dataset.load_dataset(config)
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
+    # check performance for a different number of clusters
+    x_train, y_train = data.dataset.get_total_data_from_dataloader(train_dataloader)
+    x_test, y_test = data.dataset.get_total_data_from_dataloader(test_dataloader)
+
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = models.ClusteringModel(data_shape, train_ds.num_classes, device)
+    clust_model = models.ClusteringModel(NUM_CLUSTER, device)
     clust_model.from_pretrained(args.load_path, train_dataloader, device)
     summary(clust_model, input_size=data_shape)
 
-    # verify initial accuracy
-    with torch.no_grad():
-        x_train, y_train = utils.dataset.get_total_data_from_dataloader(train_dataloader)
-        x_test, y_test = utils.dataset.get_total_data_from_dataloader(test_dataloader)
-        pred_train = clust_model.predict_class(x_train.permute(0, 2, 1).to(device)).type(torch.float32)
-        pred_test = clust_model.predict_class(x_test.permute(0, 2, 1).to(device)).type(torch.float32)
-        print_clustering_accuracy(y_train, pred_train.cpu(), y_test, pred_test.cpu())
-        print(clust_model.num_clusters)
-
-    optimizer = torch.optim.AdamW(clust_model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.runs, eta_min=args.eta_min)
+    # setup optimizer
+    backprop_config = utils.ops.BackpropConfig()
+    backprop_config.optimizer = torch.optim.AdamW
+    backprop_config.model = clust_model
+    backprop_config.lr = args.lr
+    backprop_config.eta_min = args.eta_min
+    backprop_config.epochs = args.epochs_per_run * args.runs
+    backprop_config.weight_decay = args.weight_decay
+    optimizer, scheduler = utils.ops.backprop_init(backprop_config)
 
     # train the clust_model model
-    best_accuracy = 0.0
-    with SummaryWriter(log_dir=log_dir) as writer:
+    best_clustering_accuracy = 0.0
+    log_dir_new = utils_haptr.log.logdir_name(log_dir, f'num_clust_{NUM_CLUSTER}')
+    with SummaryWriter(log_dir=log_dir_new) as writer:
         for run in range(args.runs):
-            # prepare dataloaders for the next run with updated target distributions
-            with torch.no_grad():
-                p_train = distribution_hardening(
-                    clust_model.predict_soft_assignments(x_train.permute(0, 2, 1).to(device)))
 
-                p_test = distribution_hardening(
-                    clust_model.predict_soft_assignments(x_test.permute(0, 2, 1).to(device)))
-                train_dataloader = ClusteringDataset.with_target_probs(x_train, y_train, p_train, args.batch_size)
-                test_dataloader = ClusteringDataset.with_target_probs(x_test, y_test, p_test, args.batch_size)
+            train_dataloader = update_distribution(clust_model, train_dataloader, device)
+            test_dataloader = update_distribution(clust_model, test_dataloader, device)
 
             for epoch in range(args.epochs_per_run):
                 step = run * args.epochs_per_run + epoch
@@ -150,9 +162,9 @@ def main(args):
                     writer.flush()
 
                     # save the best trained clust_model
-                    if accuracy > best_accuracy:
+                    if accuracy > best_clustering_accuracy:
                         torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
-                        best_accuracy = accuracy
+                        best_clustering_accuracy = accuracy
 
             scheduler.step()
 
@@ -166,22 +178,24 @@ def main(args):
         # save embeddings
         emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
         emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train_{NUM_CLUSTER}'),
+                                         emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test_{NUM_CLUSTER}'),
+                                         emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
-    parser.add_argument('--runs', type=int, default=40)
-    parser.add_argument('--epochs-per-run', type=int, default=100)
-    parser.add_argument('--batch-size', type=int, default=512)
+    parser.add_argument('--runs', type=int, default=100)
+    parser.add_argument('--epochs-per-run', type=int, default=20)
+    parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--weight-decay', type=float, default=1e-5)
+    parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/unsupervised/autoencoder/touching/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/touching/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)

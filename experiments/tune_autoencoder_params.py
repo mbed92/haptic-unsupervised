@@ -1,4 +1,3 @@
-import os
 from functools import partial
 
 import torch
@@ -9,16 +8,16 @@ from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
 from torch.utils.data import DataLoader
 
-import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.autoencoder import TimeSeriesAutoencoderConfig
+from data import helpers
+from models.autoencoders import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
 from train_stacked_autoencoder import train_epoch, test_epoch
 
 torch.manual_seed(42)
 
 
-def tune_train(config, const_config, train_dataloader, val_dataloader):
+def tune_train(config, const_config, train_dataloader, test_dataloader):
     nn_params = TimeSeriesAutoencoderConfig()
     nn_params.data_shape = const_config["data_shape"]
     nn_params.stride = const_config["stride"]
@@ -27,7 +26,7 @@ def tune_train(config, const_config, train_dataloader, val_dataloader):
     nn_params.dropout = config["dropout"]
     nn_params.num_heads = const_config["num_heads"]
     nn_params.use_attention = const_config["use_attention"]
-    autoencoder = models.TimeSeriesAutoencoder(nn_params)
+    autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # train the autoencoder
@@ -37,21 +36,22 @@ def tune_train(config, const_config, train_dataloader, val_dataloader):
     backprop_config_ae.eta_min = const_config["eta_min"]
     backprop_config_ae.epochs = const_config["epochs"]
     backprop_config_ae.weight_decay = config["weight_decay"]
+    backprop_config_ae.optimizer = const_config["optimizer"]
 
     # train & validate
     optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
     for epoch in range(const_config["epochs"]):
         train_epoch_loss = train_epoch(autoencoder, train_dataloader, optimizer, device)
         scheduler.step()
-        val_epoch_loss, _ = test_epoch(autoencoder, val_dataloader, device)
-        tune.report(train_loss=train_epoch_loss, val_loss=val_epoch_loss)
+        test_epoch_loss, _ = test_epoch(autoencoder, test_dataloader, device)
+        tune.report(train_loss=train_epoch_loss, test_loss=test_epoch_loss)
     print("Finished training")
 
 
 if __name__ == '__main__':
-    with open("/home/mbed/Projects/haptic-unsupervised/config/unsupervised/put.yaml") as file:
+    with open("../config/touching.yaml") as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, _, test_ds = helpers.load_dataset(config)
 
     # prepare configuration files
     tune_config = {
@@ -72,11 +72,11 @@ if __name__ == '__main__':
         "eta_min": 1e-4,
         "num_samples": 10,
         "data_shape": (train_ds.signal_length, train_ds.mean.shape[-1]),
+        "optimizer": torch.optim.AdamW
     }
 
     # load dataset
     train_dataloader = DataLoader(train_ds, batch_size=const_config["batch_size"], shuffle=True)
-    val_dataloader = DataLoader(val_ds, batch_size=const_config["batch_size"], shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=const_config["batch_size"], shuffle=True)
 
     scheduler = ASHAScheduler(
@@ -87,17 +87,17 @@ if __name__ == '__main__':
         reduction_factor=2)
 
     reporter = CLIReporter(
-        metric_columns=["train_loss", "val_loss"])
+        metric_columns=["train_loss", "test_loss"])
 
     result = tune.run(
-        partial(tune_train, const_config=const_config,
-                train_dataloader=train_dataloader, val_dataloader=val_dataloader),
+        partial(tune_train,
+                const_config=const_config, train_dataloader=train_dataloader, test_dataloader=test_dataloader),
         resources_per_trial={"cpu": 5, "gpu": 1},
         config=tune_config,
         num_samples=const_config["num_samples"],
         scheduler=scheduler,
         progress_reporter=reporter)
 
-    best_trial = result.get_best_trial("val_loss", "min", "last")
+    best_trial = result.get_best_trial("test_loss", "min", "last")
     print("Best trial config: {}".format(best_trial.config))
-    print("Best trial final validation loss: {}".format(best_trial.last_result["val_loss"]))
+    print("Best trial final test loss: {}".format(best_trial.last_result["test_loss"]))

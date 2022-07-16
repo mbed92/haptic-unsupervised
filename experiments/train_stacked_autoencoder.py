@@ -8,17 +8,13 @@ import yaml
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.autoencoder import TimeSeriesAutoencoderConfig
-from utils.dataset_loaders import EmbeddingDataset
+from data import EmbeddingDataset, helpers
+from models.autoencoders.sae import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
 
 torch.manual_seed(42)
 
-
-# best config
-# 'kernel': 7, 'activation': ReLU(), 'dropout': 0.3917794526568489, 'lr': 0.0009455447264165677, 'weight_decay': 0.0044607928103866995
 
 def query(model, x):
     y_hat = model(x.permute(0, 2, 1)).permute(0, 2, 1)
@@ -26,7 +22,7 @@ def query(model, x):
     return y_hat, loss
 
 
-def train_epoch(model, dataloader, optimizer, device):
+def train_epoch(model, dataloader, optimizer, device, clip_grad_norm=False):
     mean_loss = list()
     model.train(True)
 
@@ -36,6 +32,12 @@ def train_epoch(model, dataloader, optimizer, device):
         optimizer.zero_grad()
         y_hat, loss = query(model, x.to(device).float())
         loss.backward()
+
+        if clip_grad_norm:
+            for p in model.parameters():
+                if p.grad.norm() > 10:
+                    torch.nn.utils.clip_grad_norm_(p, 10)
+
         optimizer.step()
         mean_loss.append(loss.item())
 
@@ -70,20 +72,21 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = utils.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = helpers.load_dataset(config)
     main_train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # set up a model (find the best config)
     nn_params = TimeSeriesAutoencoderConfig()
+    nn_params.optimizer = torch.optim.AdamW
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     nn_params.stride = 2
-    nn_params.kernel = 7
-    nn_params.activation = nn.ReLU()
-    nn_params.dropout = 0.3917794526568489
+    nn_params.kernel = args.kernel_size
+    nn_params.activation = nn.ELU()
+    nn_params.dropout = args.dropout
     nn_params.num_heads = 1
-    nn_params.use_attention = True
-    autoencoder = models.TimeSeriesAutoencoder(nn_params)
+    nn_params.use_attention = False
+    autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # start pretraining SAE auto encoders
@@ -95,6 +98,7 @@ def main(args):
 
             # setup backprop config for the full AE
             backprop_config_sae = utils.ops.BackpropConfig()
+            backprop_config_sae.optimizer = torch.optim.AdamW
             backprop_config_sae.model = sae
             backprop_config_sae.lr = args.lr_sae
             backprop_config_sae.eta_min = args.eta_min_sae
@@ -125,12 +129,15 @@ def main(args):
     # train the main autoencoder
     backprop_config_ae = utils.ops.BackpropConfig()
     backprop_config_ae.model = autoencoder
+    backprop_config_ae.optimizer = torch.optim.AdamW
     backprop_config_ae.lr = args.lr_ae
     backprop_config_ae.eta_min = args.eta_min_ae
     backprop_config_ae.epochs = args.epochs_ae
     backprop_config_ae.weight_decay = args.weight_decay_ae
 
     # train
+    best_loss = 9999.9
+    best_model = None
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
         optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
 
@@ -147,38 +154,39 @@ def main(args):
             writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
             writer.flush()
 
-    # save the trained autoencoder
-    torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+            # save the best autoencoder
+            if test_epoch_loss < best_loss:
+                torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+                best_loss = test_epoch_loss
+                best_model = autoencoder
 
     # verify the unsupervised classification accuracy
-    with torch.no_grad():
-        autoencoder.cpu()
-        x_train, y_train = utils.dataset.get_total_data_from_dataloader(main_train_dataloader)
-        x_test, y_test = utils.dataset.get_total_data_from_dataloader(main_test_dataloader)
-        emb_train = autoencoder.encoder(x_train.permute(0, 2, 1)).numpy()
-        emb_test = autoencoder.encoder(x_test.permute(0, 2, 1)).numpy()
-        for c in range(2, train_ds.num_classes):
-            print(f"Clustering accuracy for {c} predicted clusters.")
-            pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, c)
-            utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-            print(f"\n")
-
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-    utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+    if best_model is not None:
+        with torch.no_grad():
+            best_model.cpu()
+            x_train, y_train = helpers.get_total_data_from_dataloader(main_train_dataloader)
+            x_test, y_test = helpers.get_total_data_from_dataloader(main_test_dataloader)
+            emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
+            emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+            pred_train, pred_test = utils.metrics.kmeans(emb_train, emb_test, train_ds.num_classes)
+            utils.metrics.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/put.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
     parser.add_argument('--epochs-sae', type=int, default=500)
-    parser.add_argument('--epochs-ae', type=int, default=5000)
+    parser.add_argument('--epochs-ae', type=int, default=1500)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=.2)
+    parser.add_argument('--dropout', type=float, default=0.2514215038832453)
+    parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=0.0009455447264165677)
-    parser.add_argument('--weight-decay-sae', type=float, default=0.0044607928103866995)
-    parser.add_argument('--weight-decay-ae', type=float, default=1e-3)
+    parser.add_argument('--lr-ae', type=float, default=0.001224607488485959)
+    parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
+    parser.add_argument('--weight-decay-ae', type=float, default=0.00021281428714627613)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')

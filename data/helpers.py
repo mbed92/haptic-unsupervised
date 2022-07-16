@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from data import TouchingDataset
+from .touching_dataset import TouchingDataset
 from submodules.haptic_transformer.data import HapticDataset, QCATDataset
 from submodules.haptic_transformer.utils.dataset import load_dataset as load_dataset_haptr
 
