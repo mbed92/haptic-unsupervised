@@ -8,15 +8,15 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
-import models
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
-from models.dec.clustering import distribution_hardening
-from utils.clustering import create_img, print_clustering_accuracy
+from data import helpers
 from data.clustering_dataset import ClusteringDataset
+from models.dec import ClusteringModel
+from utils.clustering import distribution_hardening, create_img
+from utils.metrics import clustering_accuracy, print_clustering_accuracy
 
 torch.manual_seed(42)
-NUM_CLUSTER = 8
 
 
 def query_clust(model, inputs, target_distribution):
@@ -44,7 +44,7 @@ def train_epoch(model, dataloader, optimizer, device):
         batch_data, batch_labels, target_probs = data
         y_hat, recon_loss, cluster_loss = train_clust(model, batch_data.to(device), target_probs.to(device), optimizer)
         predictions = torch.argmax(y_hat['assignments'], 1)
-        acc = utils.clustering.clustering_accuracy(batch_labels.to(device), predictions)
+        acc = clustering_accuracy(batch_labels.to(device), predictions)
         mean_recon_loss.append(recon_loss.item())
         mean_cluster_loss.append(cluster_loss.item())
         accuracy.append(acc.item())
@@ -63,7 +63,7 @@ def test_epoch(model, dataloader, device):
             batch_data, batch_labels, target_probs = data
             y_hat, recon_loss, cluster_loss = query_clust(model, batch_data.to(device), target_probs.to(device))
             predictions = torch.argmax(y_hat['assignments'], 1)
-            acc = utils.clustering.clustering_accuracy(batch_labels, predictions.cpu())
+            acc = clustering_accuracy(batch_labels, predictions.cpu())
             mean_recon_loss.append(recon_loss.item())
             mean_cluster_loss.append(cluster_loss.item())
             accuracy.append(acc.item())
@@ -78,7 +78,7 @@ def test_epoch(model, dataloader, device):
            exemplary_sample
 
 
-def update_distribution(model, dataloader: DataLoader, device):
+def update_distribution(model: nn.Module, dataloader: DataLoader, device):
     with torch.no_grad():
         x, y = list(), list()
         probs = list()
@@ -105,18 +105,18 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load dataset
-    train_ds, val_ds, test_ds = data.dataset.load_dataset(config)
+    train_ds, val_ds, test_ds = helpers.load_dataset(config)
     data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     train_dataloader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
     test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # check performance for a different number of clusters
-    x_train, y_train = data.dataset.get_total_data_from_dataloader(train_dataloader)
-    x_test, y_test = data.dataset.get_total_data_from_dataloader(test_dataloader)
+    x_train, y_train = helpers.get_total_data_from_dataloader(train_dataloader)
+    x_test, y_test = helpers.get_total_data_from_dataloader(test_dataloader)
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = models.ClusteringModel(NUM_CLUSTER, device)
+    clust_model = ClusteringModel(train_ds.num_classes, device)
     clust_model.from_pretrained(args.load_path, train_dataloader, device)
     summary(clust_model, input_size=data_shape)
 
@@ -132,10 +132,11 @@ def main(args):
 
     # train the clust_model model
     best_clustering_accuracy = 0.0
-    log_dir_new = utils_haptr.log.logdir_name(log_dir, f'num_clust_{NUM_CLUSTER}')
+    log_dir_new = utils_haptr.log.logdir_name(log_dir, f'num_clust_{train_ds.num_classes}')
     with SummaryWriter(log_dir=log_dir_new) as writer:
         for run in range(args.runs):
 
+            # create a ClusteringDataset that consists of x, y, and soft assignments
             train_dataloader = update_distribution(clust_model, train_dataloader, device)
             test_dataloader = update_distribution(clust_model, test_dataloader, device)
 
@@ -178,18 +179,16 @@ def main(args):
         # save embeddings
         emb_train = clust_model.autoencoder.encoder(x_train.permute(0, 2, 1))
         emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train_{NUM_CLUSTER}'),
-                                         emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test_{NUM_CLUSTER}'),
-                                         emb_test, y_test, writer, 1)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train'), emb_train, y_train, writer)
+        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/unsupervised/touching.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
     parser.add_argument('--runs', type=int, default=100)
-    parser.add_argument('--epochs-per-run', type=int, default=20)
+    parser.add_argument('--epochs-per-run', type=int, default=200)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
