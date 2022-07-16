@@ -13,6 +13,7 @@ Deep Embedding Clustering [DEC 2016](https://dl.acm.org/doi/10.5555/3045390.3045
 
 In the [experiments](experiments) folder there exist several scripts related to the training procedure:
 
+* Do ```git submodule update --init``` as we use some functionalities from [HAPTR](https://github.com/kolaszko/haptic_transformer) repo.
 * [tune_autoencoder](experiments/tune_autoencoder_params.py) - a script that tunes some hyperparameters using
   Tune lib. It speeds up a little bit further research.
 * [train_stacked_autoencoder](experiments/train_stacked_autoencoder.py) - training procedure of the Stacked
