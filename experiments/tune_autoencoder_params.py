@@ -25,8 +25,7 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
     nn_params.activation = config["activation"]
     nn_params.dropout = config["dropout"]
     nn_params.num_heads = const_config["num_heads"]
-    nn_params.use_attention = const_config["use_attention"]
-    nn_params.embedding_size = config["embedding_size"]
+    nn_params.use_attention = config["use_attention"]
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -42,10 +41,10 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
     # train & test
     optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
     for epoch in range(const_config["epochs"]):
-        train_epoch_loss = train_epoch(autoencoder, train_dataloader, optimizer, device)
+        train_loss = train_epoch(autoencoder, train_dataloader, optimizer, device)
         scheduler.step()
-        test_epoch_loss, _ = test_epoch(autoencoder, test_dataloader, device)
-        tune.report(train_loss=train_epoch_loss, test_loss=test_epoch_loss)
+        test_loss, _ = test_epoch(autoencoder, test_dataloader, device)
+        tune.report(train_loss=train_loss.get(), test_loss=test_loss.get())
     print("Finished training")
 
 
@@ -57,18 +56,17 @@ if __name__ == '__main__':
     # prepare configuration files
     tune_config = {
         "kernel": tune.choice([3, 5, 7, 9, 11]),
-        "activation": tune.choice([nn.ReLU(), nn.GELU(), nn.ELU()]),
+        "activation": tune.choice([nn.ReLU(), nn.GELU(), nn.ELU(), nn.LeakyReLU()]),
         "dropout": tune.loguniform(0.1, 0.5),
-        "lr": tune.loguniform(1e-4, 1e-2),
-        "weight_decay": tune.loguniform(1e-4, 1e-2),
-        "embedding_size": tune.choice([10, 15, 20, 25, 30]),
+        "lr": tune.loguniform(5e-4, 5e-3),
+        "weight_decay": tune.loguniform(1e-4, 1e-3),
+        "use_attention": tune.choice([True, False])
     }
 
     const_config = {
         "batch_size": 256,
         "stride": 2,
         "num_heads": 1,
-        "use_attention": True,
         "log_dir": utils_haptr.log.logdir_name('./', 'tune'),
         "epochs": 1000,
         "eta_min": 1e-4,

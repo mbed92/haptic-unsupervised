@@ -14,7 +14,7 @@ import utils
 from data import helpers
 from data.clustering_dataset import ClusteringDataset
 from models.dec import ClusteringModel
-from utils.clustering import distribution_hardening, print_clustering_accuracy
+from utils.clustering import distribution_hardening
 from utils.metrics import clustering_accuracy, nmi_score, rand_score, purity_score, Mean
 
 torch.manual_seed(42)
@@ -123,7 +123,7 @@ def main(args):
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = ClusteringModel(train_ds.num_classes, device)
+    clust_model = ClusteringModel(args.desired_num_clusters, device)
     clust_model.from_pretrained(args.load_path, x_train, y_train, device)
     summary(clust_model, input_size=data_shape)
 
@@ -176,26 +176,27 @@ def main(args):
 
             scheduler.step()
 
-    # verify the accuracy of the best model
+    # verify the best model
     if best_model is not None:
         with torch.no_grad():
             best_model.cpu()
-            pred_train = best_model.predict_class(x_train.permute(0, 2, 1))
-            pred_test = best_model.predict_class(x_test.permute(0, 2, 1))
-            print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-            emb_train = best_model.autoencoder.encoder(x_train.permute(0, 2, 1))
             emb_test = best_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train'), emb_train, y_train, writer)
-            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test'), emb_test, y_test, writer, 1)
+            pred_test = torch.argmax(best_model(x_test.permute(0, 2, 1))['assignments'], 1)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'emb_true'), emb_test, y_test, writer)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'emb_pred'), emb_test, pred_test, writer, 1)
+            print(f"Test purity: {purity_score(y_test, pred_test)}\n"
+                  f"Test NMI: {nmi_score(y_test, pred_test)}\n"
+                  f"Test RndIdx: {rand_score(y_test, pred_test)}\n")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
-    parser.add_argument('--best-model-criterion', type=str, default="accuracy")
+    parser.add_argument('--desired-num-clusters', type=int, default=9)
+    parser.add_argument('--best-model-criterion', type=str, default="purity")
     parser.add_argument('--runs', type=int, default=50)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=250)
+    parser.add_argument('--epochs-per-run', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)

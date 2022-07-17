@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 from sklearn.cluster import KMeans
 
-from utils.metrics import clustering_accuracy
+from utils.metrics import purity_score
 
 N_INITIAL_TRIALS = 30
 
 
 class ClusteringModel(nn.Module):
 
-    def __init__(self, num_clusters: int, device, alpha=95.0):
+    def __init__(self, num_clusters: int, device, alpha=10.0):
         super().__init__()
 
         self.num_clusters = num_clusters
@@ -48,30 +48,25 @@ class ClusteringModel(nn.Module):
         # centroids initialization
         self.autoencoder = torch.load(model_path).cpu()
 
-        # # remove regularization (dropout and batchnorm)
-        # for m in self.autoencoder.modules():
-        #     if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.Dropout):
-        #         m.eval()
-
         # fit the best centroids
         x = input_samples.permute(0, 2, 1).float()
         if best_centroids:
             with torch.no_grad():
                 embeddings = self.autoencoder.encoder(x)
 
-                # initialize centroids
-                initial_centroids, best_accuracy = None, None
+                # initialize centroids with the highest purity
+                initial_centroids, best_metric = None, None
                 for i in range(N_INITIAL_TRIALS):
                     kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
                     predictions = torch.Tensor(kmeans.fit_predict(embeddings.numpy()))
-                    initial_accuracy = clustering_accuracy(true_labels, predictions)
+                    initial_metric = purity_score(true_labels, predictions)
 
-                    if best_accuracy is None or initial_accuracy > best_accuracy:
-                        best_accuracy = initial_accuracy
+                    if best_metric is None or initial_metric > best_metric:
+                        best_metric = initial_metric
                         initial_centroids = kmeans.cluster_centers_
 
                 self.centroids.data = torch.Tensor(initial_centroids)
-            print(f"Best initial accuracy: {best_accuracy}")
+            print(f"Best initial purity: {best_metric}")
         else:
             embeddings_size = self.autoencoder.encoder(x).shape[-1]
             self.centroids = nn.Parameter(torch.rand([self.num_clusters, embeddings_size]))

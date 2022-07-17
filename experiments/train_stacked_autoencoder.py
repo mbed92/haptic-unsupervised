@@ -84,11 +84,10 @@ def main(args):
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     nn_params.stride = 2
     nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.GELU()
+    nn_params.activation = nn.ReLU()
     nn_params.dropout = args.dropout
     nn_params.num_heads = 1
     nn_params.use_attention = False
-    nn_params.embedding_size = args.embedding_size
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -182,16 +181,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
-    parser.add_argument('--embedding-size', type=int, default=25)
     parser.add_argument('--epochs-sae', type=int, default=500)
-    parser.add_argument('--epochs-ae', type=int, default=2500)
+    parser.add_argument('--epochs-ae', type=int, default=1500)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.16567829010222462)
-    parser.add_argument('--kernel-size', type=int, default=7)
+    parser.add_argument('--dropout', type=float, default=0.1393605807474044)
+    parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=0.00482074335643426)
+    parser.add_argument('--lr-ae', type=float, default=0.004430478615105727)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
-    parser.add_argument('--weight-decay-ae', type=float, default=0.008853693477391743)
+    parser.add_argument('--weight-decay-ae', type=float, default=0.00028187438911614696)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
