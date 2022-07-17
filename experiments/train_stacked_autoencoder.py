@@ -12,57 +12,57 @@ import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from data import EmbeddingDataset, helpers
 from models.autoencoders.sae import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
+from utils.metrics import Mean
 
 torch.manual_seed(42)
 
 
 def query(model, x):
-    y_hat = model(x.permute(0, 2, 1)).permute(0, 2, 1)
-    loss = nn.MSELoss()(y_hat, x)
-    return y_hat, loss
+    outputs = model(x.permute(0, 2, 1)).permute(0, 2, 1)
+    loss = nn.MSELoss()(outputs, x)
+    return outputs, loss
 
 
-def train_epoch(model, dataloader, optimizer, device, clip_grad_norm=False):
-    mean_loss = list()
+def train(model, inputs, optimizer):
+    optimizer.zero_grad()
+    outputs, loss = query(model, inputs)
+    loss.backward()
+    optimizer.step()
+    return outputs, loss
+
+
+def train_epoch(model, dataloader, optimizer, device):
+    reconstruction_loss = Mean("Reconstruction Loss")
     model.train(True)
 
-    # loop over the epoch
     for data in dataloader:
-        x, _ = data
-        optimizer.zero_grad()
-        y_hat, loss = query(model, x.to(device).float())
-        loss.backward()
+        batch_data, _ = data
+        outputs, loss = train(model, batch_data.to(device).float(), optimizer)
+        reconstruction_loss.add(loss.item())
 
-        if clip_grad_norm:
-            for p in model.parameters():
-                if p.grad.norm() > 10:
-                    torch.nn.utils.clip_grad_norm_(p, 10)
-
-        optimizer.step()
-        mean_loss.append(loss.item())
-
-    return sum(mean_loss) / len(mean_loss)
+    return reconstruction_loss
 
 
-def test_epoch(model, dataloader, device):
-    mean_loss = list()
+def test_epoch(model, dataloader, device, add_exemplary_sample=True):
+    reconstruction_loss = Mean("Reconstruction Loss")
     exemplary_sample = None
     model.train(False)
 
-    # loop over the epoch
     with torch.no_grad():
         for data in dataloader:
-            x, _ = data
-            y_hat, loss = query(model, x.to(device).float())
-            mean_loss.append(loss.item())
+            batch_data, _ = data
+            outputs, loss = query(model, batch_data.to(device).float())
 
-            # add the reconstruction result to the image
-            if exemplary_sample is None:
-                y_pred = y_hat[0].detach().cpu().numpy()
+            # gather the loss
+            reconstruction_loss.add(loss.item())
+
+            # add an exemplary sample
+            if add_exemplary_sample and exemplary_sample is None:
+                y_pred = outputs[0].detach().cpu().numpy()
                 y_true = data[0][0].detach().cpu().numpy()
                 exemplary_sample = [y_pred, y_true]
 
-    return sum(mean_loss) / len(mean_loss), exemplary_sample
+    return reconstruction_loss, exemplary_sample
 
 
 def main(args):
@@ -114,15 +114,15 @@ def main(args):
 
                 # run train/test epoch
                 for epoch in range(args.epochs_sae):
-                    train_epoch_loss = train_epoch(sae, train_dataloader, optimizer, device)
-                    writer.add_scalar('loss/train/SAE', train_epoch_loss, epoch)
-                    writer.add_scalar('lr/train/SAE', optimizer.param_groups[0]['lr'], epoch)
+                    train_loss = train_epoch(sae, train_dataloader, optimizer, device)
+                    writer.add_scalar(f'SAE/train/{train_loss.name}', train_loss.get(), epoch)
+                    writer.add_scalar(f'SAE/train/lr', optimizer.param_groups[0]['lr'], epoch)
                     writer.flush()
                     scheduler.step()
 
                     # test epoch
-                    test_epoch_loss, _ = test_epoch(sae, test_dataloader, device)
-                    writer.add_scalar('loss/test/SAE', test_epoch_loss, epoch)
+                    test_loss, _ = test_epoch(sae, test_dataloader, device)
+                    writer.add_scalar(f'SAE/test/{test_loss.name}', test_loss.get(), epoch)
                     writer.flush()
 
                 # prepare data for the previously trained SAE for the next SAE
@@ -145,22 +145,23 @@ def main(args):
         optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
 
         for epoch in range(args.epochs_ae):
-            train_epoch_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)
-            writer.add_scalar('loss/train/AE', train_epoch_loss, epoch)
-            writer.add_scalar('lr/train/AE', optimizer.param_groups[0]['lr'], epoch)
+            train_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)
+            writer.add_scalar(f'AE/train/{train_loss.name}', train_loss.get(), epoch)
+            writer.add_scalar(f'AE/train/lr', optimizer.param_groups[0]['lr'], epoch)
             writer.flush()
             scheduler.step()
 
             # test epoch
-            test_epoch_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
-            writer.add_scalar('loss/test/AE', test_epoch_loss, epoch)
-            writer.add_image('image/test/AE', utils.clustering.create_img(*exemplary_sample), epoch)
+            test_loss, exemplary_sample = test_epoch(autoencoder, main_test_dataloader, device)
+            writer.add_scalar(f'AE/test/{test_loss.name}', test_loss.get(), epoch)
+            writer.add_image('AE/test/image', utils.clustering.create_img(*exemplary_sample), epoch)
             writer.flush()
 
             # save the best autoencoder
-            if test_epoch_loss < best_loss:
+            current_test_loss = test_loss.get()
+            if current_test_loss < best_loss:
                 torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
-                best_loss = test_epoch_loss
+                best_loss = current_test_loss
                 best_model = copy.deepcopy(autoencoder)
 
     # verify the unsupervised classification accuracy

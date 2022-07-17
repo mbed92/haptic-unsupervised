@@ -14,8 +14,8 @@ import utils
 from data import helpers
 from data.clustering_dataset import ClusteringDataset
 from models.dec import ClusteringModel
-from utils.clustering import distribution_hardening, create_img, print_clustering_accuracy
-from utils.metrics import clustering_accuracy
+from utils.clustering import distribution_hardening, print_clustering_accuracy
+from utils.metrics import clustering_accuracy, nmi_score, rand_score, purity_score, Mean
 
 torch.manual_seed(42)
 
@@ -25,58 +25,70 @@ def query(model, inputs, target_distribution):
     reconstruction_loss = nn.MSELoss()(outputs['reconstruction'].permute(0, 2, 1), inputs)
     log_probs_input = outputs['assignments'].log()
     clustering_loss = nn.KLDivLoss(reduction="batchmean")(log_probs_input, target_distribution)
-    return outputs, reconstruction_loss, clustering_loss
+    return outputs, (reconstruction_loss, clustering_loss)
 
 
 def train(model, inputs, target_distribution, optimizer):
     optimizer.zero_grad()
-    outputs, reconstruction_loss, clustering_loss = query(model, inputs, target_distribution)
-    loss = reconstruction_loss + clustering_loss
+    outputs, losses = query(model, inputs, target_distribution)
+    loss = torch.sum(torch.stack(losses))
     loss.backward()
     optimizer.step()
-    return outputs, reconstruction_loss, clustering_loss
+    return outputs, losses
 
 
 def train_epoch(model, dataloader, optimizer, device):
-    mean_recon_loss, mean_cluster_loss, accuracy = list(), list(), list()
+    reconstruction_loss, clustering_loss = Mean("Reconstruction Loss"), Mean("Clustering Loss")
+    accuracy, purity, nmi, rand_index = Mean("Accuracy"), Mean("Purity"), Mean("NMI"), Mean("Random Index")
     model.train(True)
-    for step, data in enumerate(dataloader):
+
+    for data in dataloader:
         batch_data, batch_labels, target_probs = data
-        y_hat, recon_loss, cluster_loss = train(model, batch_data.to(device), target_probs.to(device), optimizer)
-        predictions = torch.argmax(y_hat['assignments'], 1)
-        acc = clustering_accuracy(batch_labels, predictions)
-        mean_recon_loss.append(recon_loss.item())
-        mean_cluster_loss.append(cluster_loss.item())
-        accuracy.append(acc.item())
+        outputs, losses = train(model, batch_data.to(device), target_probs.to(device), optimizer)
 
-    return sum(mean_recon_loss) / len(mean_recon_loss), \
-           sum(mean_cluster_loss) / len(mean_cluster_loss), \
-           sum(accuracy) / len(accuracy)
+        # gather losses
+        reconstruction_loss.add(losses[0])
+        clustering_loss.add(losses[1])
+
+        # gather metrics
+        predictions = torch.argmax(outputs['assignments'], 1)
+        accuracy.add(clustering_accuracy(batch_labels, predictions))
+        purity.add(purity_score(batch_labels, predictions))
+        nmi.add(nmi_score(batch_labels, predictions))
+        rand_index.add(rand_score(batch_labels, predictions))
+
+    return (reconstruction_loss, clustering_loss), (accuracy, purity, nmi, rand_index)
 
 
-def test_epoch(model, dataloader, device):
-    mean_recon_loss, mean_cluster_loss, accuracy = list(), list(), list()
-    model.train(False)
+def test_epoch(model, dataloader, device, add_exemplary_sample=True):
+    reconstruction_loss, clustering_loss = Mean("Reconstruction Loss"), Mean("Clustering Loss")
+    accuracy, purity, nmi, rand_index = Mean("Accuracy"), Mean("Purity"), Mean("NMI"), Mean("Random Index")
     exemplary_sample = None
-    with torch.no_grad():
-        for step, data in enumerate(dataloader):
-            batch_data, batch_labels, target_probs = data
-            y_hat, recon_loss, cluster_loss = query(model, batch_data.to(device), target_probs.to(device))
-            predictions = torch.argmax(y_hat['assignments'], 1)
-            acc = clustering_accuracy(batch_labels, predictions)
-            mean_recon_loss.append(recon_loss.item())
-            mean_cluster_loss.append(cluster_loss.item())
-            accuracy.append(acc.item())
 
-            if exemplary_sample is None:
-                y_pred = y_hat['reconstruction'][0].permute(1, 0).detach().cpu().numpy()
+    model.train(False)
+    with torch.no_grad():
+        for data in dataloader:
+            batch_data, batch_labels, target_probs = data
+            outputs, losses = query(model, batch_data.to(device), target_probs.to(device))
+
+            # gather losses
+            reconstruction_loss.add(losses[0].item())
+            clustering_loss.add(losses[1].item())
+
+            # gather metrics
+            predictions = torch.argmax(outputs['assignments'], 1)
+            accuracy.add(clustering_accuracy(batch_labels, predictions))
+            purity.add(purity_score(batch_labels, predictions))
+            nmi.add(nmi_score(batch_labels, predictions))
+            rand_index.add(rand_score(batch_labels, predictions))
+
+            # add an exemplary sample
+            if add_exemplary_sample and exemplary_sample is None:
+                y_pred = outputs['reconstruction'][0].permute(1, 0).detach().cpu().numpy()
                 y_true = batch_data[0].detach().cpu().numpy()
                 exemplary_sample = [y_pred, y_true]
 
-    return sum(mean_recon_loss) / len(mean_recon_loss), \
-           sum(mean_cluster_loss) / len(mean_cluster_loss), \
-           sum(accuracy) / len(accuracy), \
-           exemplary_sample
+    return (reconstruction_loss, clustering_loss), (accuracy, purity, nmi, rand_index), exemplary_sample
 
 
 def add_soft_predictions(model: ClusteringModel, x_data: torch.Tensor, y_data: torch.Tensor,
@@ -127,7 +139,7 @@ def main(args):
 
     # train the clust_model model
     best_model = None
-    best_clustering_accuracy = 0.0
+    best_clustering_metric = 0.0
     with SummaryWriter(log_dir=log_dir) as writer:
         for run in range(args.runs):
 
@@ -139,25 +151,27 @@ def main(args):
                 step = run * args.epochs_per_run + epoch
 
                 # train epoch
-                recon_loss, clust_loss, accuracy = train_epoch(clust_model, train_dataloader, optimizer, device)
-                writer.add_scalar('loss/train/reconstruction_loss', recon_loss, step)
-                writer.add_scalar('loss/train/clustering_loss', clust_loss, step)
-                writer.add_scalar('loss/train/clustering_accuracy', accuracy, step)
-                writer.add_scalar('lr/train', optimizer.param_groups[0]['lr'], step)
+                losses, metrics = train_epoch(clust_model, train_dataloader, optimizer, device)
+                for loss in losses:
+                    writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), step)
+                for metric in metrics:
+                    writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), step)
                 writer.flush()
 
                 # test epoch
-                recon_loss, clust_loss, accuracy, exemplary_sample = test_epoch(clust_model, test_dataloader, device)
-                writer.add_scalar('loss/test/reconstruction_loss', recon_loss, step)
-                writer.add_scalar('loss/test/clustering_loss', clust_loss, step)
-                writer.add_scalar('loss/test/clustering_accuracy', accuracy, step)
-                writer.add_image('image/test/reconstruction', create_img(*exemplary_sample), step)
+                losses, metrics, exemplary_sample = test_epoch(clust_model, test_dataloader, device)
+                for loss in losses:
+                    writer.add_scalar(f"CLUSTERING/test/{loss.name}", loss.get(), step)
+                for metric in metrics:
+                    writer.add_scalar(f"CLUSTERING/test/{metric.name}", metric.get(), step)
                 writer.flush()
 
                 # save the best trained clust_model
-                if accuracy > best_clustering_accuracy:
+                idx = [i for i in range(len(metrics)) if args.best_model_criterion in metrics[i].name.lower()]
+                clustering_metric = metrics[idx[0]].get() if len(idx) == 1 else None
+                if clustering_metric is not None and clustering_metric > best_clustering_metric:
                     torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
-                    best_clustering_accuracy = accuracy
+                    best_clustering_metric = clustering_metric
                     best_model = copy.deepcopy(clust_model)
 
             scheduler.step()
@@ -179,6 +193,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
+    parser.add_argument('--best-model-criterion', type=str, default="accuracy")
     parser.add_argument('--runs', type=int, default=50)  # play with runs and epochs_per_run
     parser.add_argument('--epochs-per-run', type=int, default=250)
     parser.add_argument('--batch-size', type=int, default=256)

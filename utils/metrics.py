@@ -9,16 +9,39 @@ def untorch(tensor: torch.Tensor) -> np.ndarray:
 
 
 def purity_score(y_true: torch.Tensor, y_pred: torch.Tensor):
+    """
+    To compute purity, each cluster is assigned to the class which is most frequent in the cluster,
+    and then the accuracy of this assignment is measured by counting the number of correctly assigned samples
+    and dividing by the number of samples. Bad clustering have purity values close to 0, a perfect clustering has
+    a purity of 1. High purity is easy to achieve when the number of clusters is large - in particular, purity is 1
+    if each document gets its own cluster. Thus, we cannot use purity to trade off the quality of the clustering
+    against the number of clusters.
+    """
     y_true = untorch(y_true)
     y_pred = untorch(y_pred)
     contingency_matrix = metrics.cluster.contingency_matrix(y_true, y_pred)
     return np.sum(np.amax(contingency_matrix, axis=0)) / np.sum(contingency_matrix)
 
 
-def nmi(y_true: torch.Tensor, y_pred: torch.Tensor):
+def nmi_score(y_true: torch.Tensor, y_pred: torch.Tensor):
+    """
+    A measure that allows us to make this tradeoff is normalized mutual information or NMI.
+    """
     y_true = untorch(y_true)
     y_pred = untorch(y_pred)
     return metrics.normalized_mutual_info_score(y_true, y_pred)
+
+
+def rand_score(y_true: torch.Tensor, y_pred: torch.Tensor):
+    """
+    The Rand index gives equal weight to false positives and false negatives. Separating similar documents
+    is sometimes worse than putting pairs of dissimilar documents in the same cluster. We can use the F measure
+    to penalize false negatives more strongly than false positives by selecting a value $\beta > 1$,
+    thus giving more weight to recall.
+    """
+    y_true = untorch(y_true)
+    y_pred = untorch(y_pred)
+    return metrics.rand_score(y_true, y_pred)
 
 
 def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
@@ -37,3 +60,21 @@ def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     row_ind, col_ind = linear_sum_assignment(assignment_cost)
     gathered = data[row_ind, col_ind]  # gather_nd
     return np.sum(gathered) / num_samples
+
+
+class Mean:
+    def __init__(self, name):
+        self._data = list()
+        self.name = name
+
+    @staticmethod
+    def mean(m: list):
+        if len(m) > 0:
+            return sum(m) / len(m)
+        return None
+
+    def add(self, value: float):
+        self._data.append(value)
+
+    def get(self):
+        return self.mean(self._data)
