@@ -164,14 +164,15 @@ def main(args):
 
     # verify the accuracy of the best model
     if best_model is not None:
-        best_model.cpu()
-        pred_train = best_model.predict_class(x_train.permute(0, 2, 1))
-        pred_test = best_model.predict_class(x_test.permute(0, 2, 1))
-        print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
-        emb_train = best_model.autoencoder.encoder(x_train.permute(0, 2, 1))
-        emb_test = best_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train'), emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test'), emb_test, y_test, writer, 1)
+        with torch.no_grad():
+            best_model.cpu()
+            pred_train = best_model.predict_class(x_train.permute(0, 2, 1))
+            pred_test = best_model.predict_class(x_test.permute(0, 2, 1))
+            print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+            emb_train = best_model.autoencoder.encoder(x_train.permute(0, 2, 1))
+            emb_test = best_model.autoencoder.encoder(x_test.permute(0, 2, 1))
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_train'), emb_train, y_train, writer)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'vis_test'), emb_test, y_test, writer, 1)
 
 
 if __name__ == '__main__':

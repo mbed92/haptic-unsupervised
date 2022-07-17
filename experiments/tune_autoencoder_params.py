@@ -26,6 +26,7 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
     nn_params.dropout = config["dropout"]
     nn_params.num_heads = const_config["num_heads"]
     nn_params.use_attention = const_config["use_attention"]
+    nn_params.embedding_size = config["embedding_size"]
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -38,7 +39,7 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
     backprop_config_ae.weight_decay = config["weight_decay"]
     backprop_config_ae.optimizer = const_config["optimizer"]
 
-    # train & validate
+    # train & test
     optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
     for epoch in range(const_config["epochs"]):
         train_epoch_loss = train_epoch(autoencoder, train_dataloader, optimizer, device)
@@ -60,6 +61,7 @@ if __name__ == '__main__':
         "dropout": tune.loguniform(0.1, 0.5),
         "lr": tune.loguniform(1e-4, 1e-2),
         "weight_decay": tune.loguniform(1e-4, 1e-2),
+        "embedding_size": tune.choice([10, 15, 20, 25, 30]),
     }
 
     const_config = {

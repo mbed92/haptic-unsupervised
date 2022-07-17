@@ -44,6 +44,7 @@ class ClusteringModel(nn.Module):
 
     def from_pretrained(self, model_path: str, input_samples: torch.Tensor, true_labels: torch.Tensor,
                         device: torch.device, best_centroids: bool = True):
+
         # centroids initialization
         self.autoencoder = torch.load(model_path).cpu()
 

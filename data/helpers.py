@@ -17,7 +17,7 @@ def get_total_data_from_dataloader(dataloader: DataLoader):
         x_list.append(torch.FloatTensor(sample[0]))
         y_list.append(sample[1])
 
-    return torch.stack(x_list, 0).float(), torch.FloatTensor(y_list)
+    return torch.stack(x_list, 0).float().detach(), torch.FloatTensor(y_list).detach()
 
 
 def pick_haptic_dataset(ds: HapticDataset, classes: list):

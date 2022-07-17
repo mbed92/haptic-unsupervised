@@ -84,10 +84,11 @@ def main(args):
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     nn_params.stride = 2
     nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.ELU()
+    nn_params.activation = nn.GELU()
     nn_params.dropout = args.dropout
     nn_params.num_heads = 1
     nn_params.use_attention = False
+    nn_params.embedding_size = args.embedding_size
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -164,35 +165,37 @@ def main(args):
 
     # verify the unsupervised classification accuracy
     if best_model is not None:
-        best_model.cpu()
-        x_train, y_train = helpers.get_total_data_from_dataloader(main_train_dataloader)
-        x_test, y_test = helpers.get_total_data_from_dataloader(main_test_dataloader)
-        emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
-        emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
-        utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
-        pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, train_ds.num_classes)
-        utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
+        with torch.no_grad():
+            best_model.cpu()
+            x_train, y_train = helpers.get_total_data_from_dataloader(main_train_dataloader)
+            x_test, y_test = helpers.get_total_data_from_dataloader(main_test_dataloader)
+            emb_train = best_model.encoder(x_train.permute(0, 2, 1)).numpy()
+            emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
+            utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
+            pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, train_ds.num_classes)
+            utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
+    parser.add_argument('--embedding-size', type=int, default=25)
     parser.add_argument('--epochs-sae', type=int, default=500)
-    parser.add_argument('--epochs-ae', type=int, default=1500)
+    parser.add_argument('--epochs-ae', type=int, default=2500)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.2514215038832453)
-    parser.add_argument('--kernel-size', type=int, default=3)
+    parser.add_argument('--dropout', type=float, default=0.16567829010222462)
+    parser.add_argument('--kernel-size', type=int, default=7)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=0.001224607488485959)
+    parser.add_argument('--lr-ae', type=float, default=0.00482074335643426)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
-    parser.add_argument('--weight-decay-ae', type=float, default=0.00021281428714627613)
+    parser.add_argument('--weight-decay-ae', type=float, default=0.008853693477391743)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
     parser.add_argument('--dont-pretrain-sae', dest='pretrain_sae', action='store_false')
     parser.set_defaults(pretrain_sae=True)
-
     args, _ = parser.parse_known_args()
+
     main(args)
