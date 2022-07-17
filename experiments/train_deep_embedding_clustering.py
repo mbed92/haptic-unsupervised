@@ -44,7 +44,7 @@ def train_epoch(model, dataloader, optimizer, device):
         batch_data, batch_labels, target_probs = data
         y_hat, recon_loss, cluster_loss = train(model, batch_data.to(device), target_probs.to(device), optimizer)
         predictions = torch.argmax(y_hat['assignments'], 1)
-        acc = clustering_accuracy(batch_labels.to(device), predictions)
+        acc = clustering_accuracy(batch_labels, predictions)
         mean_recon_loss.append(recon_loss.item())
         mean_cluster_loss.append(cluster_loss.item())
         accuracy.append(acc.item())

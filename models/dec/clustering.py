@@ -64,7 +64,7 @@ class ClusteringModel(nn.Module):
                 for i in range(N_INITIAL_TRIALS):
                     kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
                     predictions = torch.Tensor(kmeans.fit_predict(embeddings.numpy()))
-                    initial_accuracy = clustering_accuracy(true_labels, predictions).numpy()
+                    initial_accuracy = clustering_accuracy(true_labels, predictions)
 
                     if best_accuracy is None or initial_accuracy > best_accuracy:
                         best_accuracy = initial_accuracy
