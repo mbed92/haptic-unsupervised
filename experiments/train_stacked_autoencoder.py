@@ -87,7 +87,7 @@ def main(args):
     nn_params.activation = nn.ReLU()
     nn_params.dropout = args.dropout
     nn_params.num_heads = 1
-    nn_params.use_attention = False
+    nn_params.use_attention = True
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -180,16 +180,16 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
+                        default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--epochs-sae', type=int, default=500)
-    parser.add_argument('--epochs-ae', type=int, default=1500)
+    parser.add_argument('--epochs-ae', type=int, default=2500)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.1393605807474044)
-    parser.add_argument('--kernel-size', type=int, default=3)
+    parser.add_argument('--dropout', type=float, default=0.45635277979183336)
+    parser.add_argument('--kernel-size', type=int, default=11)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=0.004430478615105727)
+    parser.add_argument('--lr-ae', type=float, default=0.002563381925346822)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
-    parser.add_argument('--weight-decay-ae', type=float, default=0.00028187438911614696)
+    parser.add_argument('--weight-decay-ae', type=float, default=0.00054315338257184)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')

@@ -9,7 +9,7 @@ N_INITIAL_TRIALS = 30
 
 class ClusteringModel(nn.Module):
 
-    def __init__(self, num_clusters: int, device, alpha=10.0):
+    def __init__(self, num_clusters: int, device, alpha=1.0):
         super().__init__()
 
         self.num_clusters = num_clusters
@@ -29,8 +29,9 @@ class ClusteringModel(nn.Module):
         }
 
     def t_student(self, x):
-        dist = x[:, None] - self.centroids[None, :]
-        dist = torch.linalg.norm(dist, dim=-1)
+        # dist = x[:, None] - self.centroids[None, :]
+        # dist = torch.linalg.norm(dist, dim=-1)
+        dist = torch.sum((x.unsqueeze(1) - self.centroids) ** 2, 2)
         q = 1.0 / (1.0 + dist / self.alpha)
         q = torch.pow(q, (self.alpha + 1.0) / 2.0)
         a = torch.sum(q, 1, keepdim=True)

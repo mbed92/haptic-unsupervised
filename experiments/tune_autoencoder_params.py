@@ -49,14 +49,14 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
 
 
 if __name__ == '__main__':
-    with open("../config/touching.yaml") as file:
+    with open("../config/put.yaml") as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     train_ds, _, test_ds = helpers.load_dataset(config)
 
     # prepare configuration files
     tune_config = {
         "kernel": tune.choice([3, 5, 7, 9, 11]),
-        "activation": tune.choice([nn.ReLU(), nn.GELU(), nn.ELU(), nn.LeakyReLU()]),
+        "activation": tune.choice([nn.ReLU(), nn.GELU(), nn.ELU(), nn.LeakyReLU(), nn.SiLU()]),
         "dropout": tune.loguniform(0.1, 0.5),
         "lr": tune.loguniform(5e-4, 5e-3),
         "weight_decay": tune.loguniform(1e-4, 1e-3),

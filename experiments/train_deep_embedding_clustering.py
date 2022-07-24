@@ -14,10 +14,11 @@ import utils
 from data import helpers
 from data.clustering_dataset import ClusteringDataset
 from models.dec import ClusteringModel
-from utils.clustering import distribution_hardening
+from utils.clustering import distribution_hardening, create_img
 from utils.metrics import clustering_accuracy, nmi_score, rand_score, purity_score, Mean
 
 torch.manual_seed(42)
+alpha = 0.2
 
 
 def query(model, inputs, target_distribution):
@@ -25,7 +26,7 @@ def query(model, inputs, target_distribution):
     reconstruction_loss = nn.MSELoss()(outputs['reconstruction'].permute(0, 2, 1), inputs)
     log_probs_input = outputs['assignments'].log()
     clustering_loss = nn.KLDivLoss(reduction="batchmean")(log_probs_input, target_distribution)
-    return outputs, (reconstruction_loss, clustering_loss)
+    return outputs, (alpha * reconstruction_loss, (1.0 - alpha) * clustering_loss)
 
 
 def train(model, inputs, target_distribution, optimizer):
@@ -123,7 +124,7 @@ def main(args):
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = ClusteringModel(args.desired_num_clusters, device)
+    clust_model = ClusteringModel(train_ds.num_classes, device)
     clust_model.from_pretrained(args.load_path, x_train, y_train, device)
     summary(clust_model, input_size=data_shape)
 
@@ -156,6 +157,7 @@ def main(args):
                     writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), step)
                 for metric in metrics:
                     writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), step)
+                writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], epoch)
                 writer.flush()
 
                 # test epoch
@@ -164,6 +166,8 @@ def main(args):
                     writer.add_scalar(f"CLUSTERING/test/{loss.name}", loss.get(), step)
                 for metric in metrics:
                     writer.add_scalar(f"CLUSTERING/test/{metric.name}", metric.get(), step)
+                if exemplary_sample is not None:
+                    writer.add_image(f"CLUSTERING/test/image", create_img(*exemplary_sample), step)
                 writer.flush()
 
                 # save the best trained clust_model
@@ -192,17 +196,16 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/config/touching.yaml")
-    parser.add_argument('--desired-num-clusters', type=int, default=9)
+                        default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--best-model-criterion', type=str, default="purity")
-    parser.add_argument('--runs', type=int, default=50)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=100)
+    parser.add_argument('--runs', type=int, default=100)  # play with runs and epochs_per_run
+    parser.add_argument('--epochs-per-run', type=int, default=250)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/touching/full/test_model")
+                        default="/home/mbed/Projects/haptic-unsupervised/experiments/autoencoder/put/full/test_model")
 
     args, _ = parser.parse_known_args()
     main(args)
