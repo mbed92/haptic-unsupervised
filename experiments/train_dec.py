@@ -142,7 +142,7 @@ def main(args):
 
     # train the clust_model model
     best_model = None
-    best_clustering_metric = 0.0
+    best_clustering_metric = 9999.9
     with SummaryWriter(log_dir=log_dir) as writer:
         for run in range(args.runs):
 
@@ -159,7 +159,7 @@ def main(args):
                     writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), step)
                 for metric in metrics:
                     writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), step)
-                writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], epoch)
+                writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], step)
                 writer.flush()
 
                 # test epoch
@@ -172,13 +172,14 @@ def main(args):
                     writer.add_image(f"CLUSTERING/test/image", create_img(*exemplary_sample), step)
                 writer.flush()
 
-                # save the best trained clust_model
-                idx = [i for i in range(len(metrics)) if args.best_model_criterion in metrics[i].name.lower()]
-                clustering_metric = metrics[idx[0]].get() if len(idx) == 1 else None
-                if clustering_metric is not None and clustering_metric > best_clustering_metric:
+                # save the best trained clust_model under the clustering_loss
+                clustering_loss = losses[-1].get()
+                if clustering_loss is not None and clustering_loss < best_clustering_metric:
                     torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
-                    best_clustering_metric = clustering_metric
+                    best_clustering_metric = clustering_loss
                     best_model = copy.deepcopy(clust_model)
+
+                print(f"Run {run}/{args.runs}. Epoch: {epoch} / {args.epochs_per_run}. Best loss: {best_clustering_metric}")
 
             scheduler.step()
 
@@ -199,9 +200,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
-    parser.add_argument('--best-model-criterion', type=str, default="purity")
-    parser.add_argument('--num-clusters', type=int, default=2)
-    parser.add_argument('--runs', type=int, default=1000)  # play with runs and epochs_per_run
+    parser.add_argument('--num-clusters', type=int)
+    parser.add_argument('--runs', type=int, default=250)  # play with runs and epochs_per_run
     parser.add_argument('--epochs-per-run', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
