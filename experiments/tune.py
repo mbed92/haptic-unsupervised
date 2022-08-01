@@ -11,22 +11,21 @@ from torch.utils.data import DataLoader
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from data import helpers
-from models.autoencoders import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
-from train_stacked_autoencoder import train_epoch, test_epoch
+from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
+from utils.ops import train_epoch, test_epoch
 
 torch.manual_seed(42)
 
+CONFIG_FILE = "../config/put.yaml"
+
 
 def tune_train(config, const_config, train_dataloader, test_dataloader):
-    nn_params = TimeSeriesAutoencoderConfig()
+    nn_params = TimeSeriesConvAutoencoderConfig()
     nn_params.data_shape = const_config["data_shape"]
-    nn_params.stride = const_config["stride"]
     nn_params.kernel = config["kernel"]
     nn_params.activation = config["activation"]
     nn_params.dropout = config["dropout"]
-    nn_params.num_heads = const_config["num_heads"]
-    nn_params.use_attention = config["use_attention"]
-    autoencoder = TimeSeriesAutoencoder(nn_params)
+    autoencoder = TimeSeriesConvAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # train the autoencoder
@@ -49,7 +48,7 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
 
 
 if __name__ == '__main__':
-    with open("../../config/put.yaml") as file:
+    with open(CONFIG_FILE) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     train_ds, _, test_ds = helpers.load_dataset(config)
 
@@ -59,16 +58,13 @@ if __name__ == '__main__':
         "activation": tune.choice([nn.ReLU(), nn.GELU(), nn.ELU(), nn.LeakyReLU(), nn.SiLU()]),
         "dropout": tune.loguniform(0.1, 0.5),
         "lr": tune.loguniform(5e-4, 5e-3),
-        "weight_decay": tune.loguniform(1e-4, 1e-3),
-        "use_attention": tune.choice([True, False])
+        "weight_decay": tune.loguniform(1e-4, 5e-4)
     }
 
     const_config = {
         "batch_size": 256,
-        "stride": 2,
-        "num_heads": 1,
         "log_dir": utils_haptr.log.logdir_name('./', 'tune'),
-        "epochs": 1000,
+        "epochs": 100,
         "eta_min": 1e-4,
         "num_samples": 10,
         "data_shape": (train_ds.signal_length, train_ds.mean.shape[-1]),

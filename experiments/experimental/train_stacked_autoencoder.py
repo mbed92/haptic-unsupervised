@@ -12,57 +12,9 @@ import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from data import EmbeddingDataset, helpers
 from models.autoencoders.sae import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
-from utils.metrics import Mean
+from utils.ops import train_epoch, test_epoch
 
 torch.manual_seed(42)
-
-
-def query(model, x):
-    outputs = model(x.permute(0, 2, 1)).permute(0, 2, 1)
-    loss = nn.MSELoss()(outputs, x)
-    return outputs, loss
-
-
-def train(model, inputs, optimizer):
-    optimizer.zero_grad()
-    outputs, loss = query(model, inputs)
-    loss.backward()
-    optimizer.step()
-    return outputs, loss
-
-
-def train_epoch(model, dataloader, optimizer, device):
-    reconstruction_loss = Mean("Reconstruction Loss")
-    model.train(True)
-
-    for data in dataloader:
-        batch_data, _ = data
-        outputs, loss = train(model, batch_data.to(device).float(), optimizer)
-        reconstruction_loss.add(loss.item())
-
-    return reconstruction_loss
-
-
-def test_epoch(model, dataloader, device, add_exemplary_sample=True):
-    reconstruction_loss = Mean("Reconstruction Loss")
-    exemplary_sample = None
-    model.train(False)
-
-    with torch.no_grad():
-        for data in dataloader:
-            batch_data, _ = data
-            outputs, loss = query(model, batch_data.to(device).float())
-
-            # gather the loss
-            reconstruction_loss.add(loss.item())
-
-            # add an exemplary sample
-            if add_exemplary_sample and exemplary_sample is None:
-                y_pred = outputs[0].detach().cpu().numpy()
-                y_true = data[0][0].detach().cpu().numpy()
-                exemplary_sample = [y_pred, y_true]
-
-    return reconstruction_loss, exemplary_sample
 
 
 def main(args):

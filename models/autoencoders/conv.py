@@ -1,17 +1,15 @@
 """ Stacked AutEncoder """
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from math import ceil
 
+import torch
+import torch.nn as nn
 
-class TimeSeriesBinaryAutoencoderConfig:
+
+class TimeSeriesConvAutoencoderConfig:
     data_shape: iter
-    stride: int
     kernel: int
     dropout: float
     activation: nn.Module
-    embedding_size: int
 
 
 def encoder_block(in_f, out_f, kernel, stride, padding, activation, dropout):
@@ -32,12 +30,12 @@ def decoder_block(in_f, out_f, kernel, stride, padding, activation, dropout):
     )
 
 
-class TimeSeriesBinaryAutoencoder(nn.Module):
+class TimeSeriesConvAutoencoder(nn.Module):
 
-    def __init__(self, cfg: TimeSeriesBinaryAutoencoderConfig):
+    def __init__(self, cfg: TimeSeriesConvAutoencoderConfig):
         super().__init__()
         assert len(cfg.data_shape) == 2
-        self.embedding_size = 10
+        self.embedding_size = 1
 
         padding = ceil(cfg.kernel / 2) - 1
         self.encoder_layers = nn.Sequential(
@@ -61,11 +59,14 @@ class TimeSeriesBinaryAutoencoder(nn.Module):
 
     def encoder(self, inputs):
         z = self.encoder_layers(inputs)
-        # z = torch.argmax(z_logits, dim=1)
-        # z = F.one_hot(z, num_classes=self.vocabulary_size).permute(0, 2, 1).float()
-        return z
+        return torch.squeeze(z, 1)
+
+    def decoder(self, inputs):
+        inputs = torch.unsqueeze(inputs, 1)
+        x = self.decoder_layers(inputs)
+        return x
 
     def forward(self, inputs):
         z = self.encoder(inputs)
-        x_reconstructed = self.decoder_layers(z)
-        return x_reconstructed
+        x = self.decoder(z)
+        return x

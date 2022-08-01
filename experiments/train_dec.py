@@ -125,7 +125,8 @@ def main(args):
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    clust_model = ClusteringModel(train_ds.num_classes, device)
+    clust_model = ClusteringModel(train_ds.num_classes)
+    clust_model.num_clusters = args.num_clusters
     clust_model.from_pretrained(args.load_path, x_train, y_train, device)
     summary(clust_model, input_size=data_shape)
 
@@ -199,8 +200,9 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--best-model-criterion', type=str, default="purity")
-    parser.add_argument('--runs', type=int, default=25000)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=200)
+    parser.add_argument('--num-clusters', type=int, default=2)
+    parser.add_argument('--runs', type=int, default=1000)  # play with runs and epochs_per_run
+    parser.add_argument('--epochs-per-run', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)

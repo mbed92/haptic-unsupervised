@@ -1,6 +1,7 @@
 import argparse
 import copy
 import os
+
 import torch
 import torch.nn as nn
 import yaml
@@ -10,8 +11,8 @@ from torch.utils.tensorboard import SummaryWriter
 import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from data import helpers
-from models.autoencoders.conv import TimeSeriesBinaryAutoencoderConfig, TimeSeriesBinaryAutoencoder
-from experiments.experimental.train_stacked_autoencoder import train_epoch, test_epoch
+from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
+from utils.ops import train_epoch, test_epoch
 
 torch.manual_seed(42)
 
@@ -30,13 +31,12 @@ def main(args):
     main_test_dataloader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
 
     # set up a model (find the best config)
-    nn_params = TimeSeriesBinaryAutoencoderConfig()
+    nn_params = TimeSeriesConvAutoencoderConfig()
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
-    nn_params.stride = 2
     nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.ReLU()
+    nn_params.activation = nn.GELU()
     nn_params.dropout = args.dropout
-    autoencoder = TimeSeriesBinaryAutoencoder(nn_params)
+    autoencoder = TimeSeriesConvAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # train the main autoencoder
@@ -84,20 +84,18 @@ def main(args):
             emb_test = best_model.encoder(x_test.permute(0, 2, 1)).numpy()
             utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_train'), emb_train, y_train, writer)
             utils.clustering.save_embeddings(os.path.join(writer.log_dir, 'vis_test'), emb_test, y_test, writer, 1)
-            pred_train, pred_test = utils.clustering.kmeans(emb_train, emb_test, train_ds.num_classes)
-            utils.clustering.print_clustering_accuracy(y_train, pred_train, y_test, pred_test)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
-    parser.add_argument('--epochs', type=int, default=2500)
+    parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.2)
-    parser.add_argument('--kernel-size', type=int, default=3)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--weight-decay', type=float, default=1e-3)
+    parser.add_argument('--dropout', type=float, default=0.1300238908180922)
+    parser.add_argument('--kernel-size', type=int, default=11)
+    parser.add_argument('--lr', type=float, default=0.0006863541995399743)
+    parser.add_argument('--weight-decay', type=float, default=0.00018546443538449212)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     args, _ = parser.parse_known_args()
 
