@@ -33,6 +33,7 @@ def train(model, inputs, target_distribution, optimizer):
     optimizer.zero_grad()
     outputs, losses = query(model, inputs, target_distribution)
     loss = torch.sum(torch.stack(losses))
+    # loss = torch.sum(losses[1])
     loss.backward()
     optimizer.step()
     return outputs, losses
@@ -105,7 +106,7 @@ def add_soft_predictions(model: ClusteringModel, x_data: torch.Tensor, y_data: t
 
 
 def main(args):
-    log_dir = utils_haptr.log.logdir_name('./', 'clust_model')
+    log_dir = utils_haptr.log.logdir_name('./', 'dec')
     utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
 
     # load data
@@ -198,8 +199,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--best-model-criterion', type=str, default="purity")
-    parser.add_argument('--runs', type=int, default=100)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=250)
+    parser.add_argument('--runs', type=int, default=25000)  # play with runs and epochs_per_run
+    parser.add_argument('--epochs-per-run', type=int, default=200)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)

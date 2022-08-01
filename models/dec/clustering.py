@@ -43,6 +43,13 @@ class ClusteringModel(nn.Module):
     def predict_class(self, data):
         return torch.argmax(self.predict_soft_assignments(data), -1)
 
+    @staticmethod
+    def set_random_centroids(encoder: nn.Module, x, num_centroids):
+        embeddings_size = encoder(x).shape[-1]
+        centroids = nn.Parameter(torch.rand([num_centroids, embeddings_size]))
+        nn.init.xavier_uniform_(centroids)
+        return centroids
+
     def from_pretrained(self, model_path: str, input_samples: torch.Tensor, true_labels: torch.Tensor,
                         device: torch.device, best_centroids: bool = True):
 
@@ -58,22 +65,25 @@ class ClusteringModel(nn.Module):
                 # initialize centroids with the highest purity
                 initial_centroids, best_metric = None, None
                 for i in range(N_INITIAL_TRIALS):
-                    kmeans = KMeans(n_clusters=self.num_clusters, n_init=1)
-                    predictions = torch.Tensor(kmeans.fit_predict(embeddings.numpy()))
+                    method = KMeans(n_clusters=self.num_clusters)
+                    predictions = torch.Tensor(method.fit_predict(embeddings.numpy()))
                     initial_metric = purity_score(true_labels, predictions)
 
                     if best_metric is None or initial_metric > best_metric:
                         best_metric = initial_metric
-                        initial_centroids = kmeans.cluster_centers_
+                        initial_centroids = method.cluster_centers_
 
                 self.centroids.data = torch.Tensor(initial_centroids)
             print(f"Best initial purity: {best_metric}")
+
         else:
-            embeddings_size = self.autoencoder.encoder(x).shape[-1]
-            self.centroids = nn.Parameter(torch.rand([self.num_clusters, embeddings_size]))
-            nn.init.xavier_uniform_(self.centroids)
+            self.centroids = self.set_random_centroids(self.autoencoder.encoder, x, self.num_clusters)
 
         # upload the model and centroid to the device again
         self.centroids.to(device)
         self.autoencoder.to(device)
         self.to(device)
+
+        # freeze the autoencoder
+        for p in self.autoencoder.parameters():
+            p.requires_grad = False

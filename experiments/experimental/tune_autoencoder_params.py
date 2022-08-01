@@ -49,7 +49,7 @@ def tune_train(config, const_config, train_dataloader, test_dataloader):
 
 
 if __name__ == '__main__':
-    with open("../config/put.yaml") as file:
+    with open("../../config/put.yaml") as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     train_ds, _, test_ds = helpers.load_dataset(config)
 
