@@ -43,7 +43,7 @@ class SAE(nn.Module):
             layers.append(activation)
 
         return nn.Sequential(*layers), nn.Dropout(dropout)
-
+    
     def forward(self, inputs):
         x = self.encoder_drop(self.encoder(inputs))
         return self.decoder_drop(self.decoder(x))
@@ -62,6 +62,7 @@ class TimeSeriesAutoencoderConfig:
     dropout: float
     num_heads: int
     activation: nn.Module
+    embedding_size: int
 
 
 class TimeSeriesAutoencoder(nn.Module):
@@ -73,12 +74,12 @@ class TimeSeriesAutoencoder(nn.Module):
         sig_length, num_channels = cfg.data_shape
         self.sae1 = SAE(num_channels, 32, cfg.kernel, cfg.stride, cfg.activation, None)  # reconstructs
         self.sae2 = SAE(32, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
-        self.sae3 = SAE(64, 128, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
-        self.sae4 = SAE(128, 8, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae3 = SAE(64, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae4 = SAE(64, 1, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
         self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4]
 
-        embedding_size = int(sig_length / (cfg.stride ** len(self.sae_modules)))
-        self.attention_layer = nn.MultiheadAttention(embed_dim=embedding_size, num_heads=1,
+        self.embedding_size = int(sig_length / (cfg.stride ** len(self.sae_modules)))
+        self.attention_layer = nn.MultiheadAttention(embed_dim=self.embedding_size, num_heads=1,
                                                      dropout=0.2) if cfg.use_attention else None
 
     def encoder(self, x):
@@ -95,7 +96,7 @@ class TimeSeriesAutoencoder(nn.Module):
         return x
 
     def decoder(self, x):
-        x = x.reshape((x.shape[0], 8, -1))
+        x = x.reshape((x.shape[0], 1, -1))
         x = self.sae4.decoder(x)
         x = self.sae3.decoder(x)
         x = self.sae2.decoder(x)

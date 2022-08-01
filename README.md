@@ -13,11 +13,12 @@ Deep Embedding Clustering [DEC 2016](https://dl.acm.org/doi/10.5555/3045390.3045
 
 In the [experiments](experiments) folder there exist several scripts related to the training procedure:
 
-* [tune_autoencoder](experiments/tune_autoencoder_params.py) - a script that tunes some hyperparameters using
+* Do ```git submodule update --init``` as we use some functionalities from [HAPTR](https://github.com/kolaszko/haptic_transformer) repo.
+* [tune_autoencoder](experiments/tune.py) - a script that tunes some hyperparameters using
   Tune lib. It speeds up a little bit further research.
-* [train_stacked_autoencoder](experiments/train_stacked_autoencoder.py) - training procedure of the Stacked
+* [train_stacked_autoencoder](experiments/experimental/train_stacked_autoencoder.py) - training procedure of the Stacked
   AutoEncoder (SAE) of time series.
-* [train_deep_embedding_clustering](experiments/train_deep_embedding_clustering.py) - a fine-tuning of the SAC in a way
+* [train_deep_embedding_clustering](experiments/train_dec.py) - a fine-tuning of the SAC in a way
   where the distances between clusters are maximized.
 
 ## Datasets:
