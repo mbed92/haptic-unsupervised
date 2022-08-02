@@ -11,7 +11,6 @@ class ClusteringModel(nn.Module):
 
     def __init__(self, num_clusters: int, alpha=1.0):
         super().__init__()
-
         self.num_clusters = num_clusters
         self.alpha = alpha
         self.autoencoder = None
@@ -42,15 +41,18 @@ class ClusteringModel(nn.Module):
     def predict_class(self, data):
         return torch.argmax(self.predict_soft_assignments(data), -1)
 
-    def from_pretrained(self, model_path: str, input_samples: torch.Tensor, true_labels: torch.Tensor,
-                        device: torch.device, best_centroids: bool = True):
+    def from_pretrained(self, model_path: str,
+                        input_samples: torch.Tensor,
+                        true_labels: torch.Tensor,
+                        device: torch.device,
+                        pick_best_centroids: bool = True):
 
         # centroids initialization
         self.autoencoder = torch.load(model_path).cpu()
 
         # fit the best centroids or set randomly
         inputs = input_samples.permute(0, 2, 1).float()
-        if best_centroids:
+        if pick_best_centroids:
             self.centroids = self.set_kmeans_centroids(self.autoencoder.encoder, inputs, true_labels, self.num_clusters)
         else:
             size_centroids = self.autoencoder.encoder(inputs).shape[-1]
@@ -60,7 +62,7 @@ class ClusteringModel(nn.Module):
         self.centroids.to(device)
         self.autoencoder.to(device)
         self.to(device)
-        print(f"Set {len(self.centroids)} means: {self.centroids}")
+        print(f"Set {len(self.centroids)} means:\n{self.centroids}")
 
     @staticmethod
     def set_random_centroids(num_centroids, size_centroids):

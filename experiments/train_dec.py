@@ -179,7 +179,9 @@ def main(args):
                     best_clustering_metric = clustering_loss
                     best_model = copy.deepcopy(clust_model)
 
-                print(f"Run {run}/{args.runs}. Epoch: {epoch} / {args.epochs_per_run}. Best loss: {best_clustering_metric}")
+                print(f"Run {run}/{args.runs}. "
+                      f"Epoch: {epoch} / {args.epochs_per_run}. "
+                      f"Best loss: {best_clustering_metric}")
 
             scheduler.step()
 
@@ -201,8 +203,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--num-clusters', type=int)
-    parser.add_argument('--runs', type=int, default=250)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=10)
+    parser.add_argument('--runs', type=int, default=50)  # play with runs and epochs_per_run
+    parser.add_argument('--epochs-per-run', type=int, default=200)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)

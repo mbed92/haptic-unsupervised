@@ -16,7 +16,7 @@ In the [experiments](experiments) folder there exist several scripts related to 
 * Do ```git submodule update --init``` as we use some functionalities from [HAPTR](https://github.com/kolaszko/haptic_transformer) repo.
 * [tune_autoencoder](experiments/tune.py) - a script that tunes some hyperparameters using
   Tune lib. It speeds up a little bit further research.
-* [train_stacked_autoencoder](experiments/experimental/train_stacked_autoencoder.py) - training procedure of the Stacked
+* [train_stacked_autoencoder](experiments/train_stacked_autoencoder.py) - training procedure of the Stacked
   AutoEncoder (SAE) of time series.
 * [train_deep_embedding_clustering](experiments/train_dec.py) - a fine-tuning of the SAC in a way
   where the distances between clusters are maximized.

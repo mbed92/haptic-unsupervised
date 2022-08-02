@@ -21,10 +21,13 @@ CONFIG_FILE = "../config/put.yaml"
 
 def tune_train(config, const_config, train_dataloader, test_dataloader):
     nn_params = TimeSeriesConvAutoencoderConfig()
+    # nn_params = TimeSeriesAutoencoderConfig()
     nn_params.data_shape = const_config["data_shape"]
     nn_params.kernel = config["kernel"]
     nn_params.activation = config["activation"]
     nn_params.dropout = config["dropout"]
+    # nn_params.stride = 2
+    # autoencoder = TimeSeriesAutoencoder(nn_params)
     autoencoder = TimeSeriesConvAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 

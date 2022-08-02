@@ -18,7 +18,7 @@ torch.manual_seed(42)
 
 
 def main(args):
-    log_dir = utils_haptr.log.logdir_name('./', 'autoencoder')
+    log_dir = utils_haptr.log.logdir_name('./', 'stacked_autoencoder')
     utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
 
     # load data
@@ -36,10 +36,8 @@ def main(args):
     nn_params.data_shape = train_ds.signal_length, train_ds.mean.shape[-1]
     nn_params.stride = 2
     nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.ReLU()
+    nn_params.activation = nn.GELU()
     nn_params.dropout = args.dropout
-    nn_params.num_heads = 1
-    nn_params.use_attention = True
     autoencoder = TimeSeriesAutoencoder(nn_params)
     device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -61,7 +59,6 @@ def main(args):
 
             with SummaryWriter(log_dir=os.path.join(log_dir, f'sae{i}')) as writer:
                 optimizer, scheduler = utils.ops.backprop_init(backprop_config_sae)
-                sae.set_dropout(args.dropout)
 
                 # run train/test epoch
                 for epoch in range(args.epochs_sae):
@@ -133,15 +130,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset-config-file', type=str,
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
-    parser.add_argument('--epochs-sae', type=int, default=500)
-    parser.add_argument('--epochs-ae', type=int, default=2500)
+
+    parser.add_argument('--epochs-sae', type=int, default=400)
+    parser.add_argument('--epochs-ae', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--dropout', type=float, default=0.45635277979183336)
+    parser.add_argument('--dropout', type=float, default=0.1300238908180922)
     parser.add_argument('--kernel-size', type=int, default=11)
     parser.add_argument('--lr-sae', type=float, default=1e-3)
-    parser.add_argument('--lr-ae', type=float, default=0.002563381925346822)
+    parser.add_argument('--lr-ae', type=float, default=0.0006863541995399743)
     parser.add_argument('--weight-decay-sae', type=float, default=1e-3)
-    parser.add_argument('--weight-decay-ae', type=float, default=0.00054315338257184)
+    parser.add_argument('--weight-decay-ae', type=float, default=0.00018546443538449212)
     parser.add_argument('--eta-min-sae', type=float, default=1e-4)
     parser.add_argument('--eta-min-ae', type=float, default=1e-4)
     parser.add_argument('--pretrain-sae', dest='pretrain_sae', action='store_true')
