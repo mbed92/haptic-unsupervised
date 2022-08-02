@@ -4,7 +4,7 @@ export PYTHONPATH="$PYTHONPATH:/home/mbed/Projects/haptic-unsupervised"
 
 SCRIPT="/home/mbed/Projects/haptic-unsupervised/experiments/train_dec.py"
 
-nohup python3 -u $SCRIPT --num-clusters 2 >log_2.txt
+nohup python3 -u $SCRIPT --num-clusters 2 >log_2.txt &&
   python3 -u $SCRIPT --num-clusters 3 >log_3.txt &&
   python3 -u $SCRIPT --num-clusters 4 >log_4.txt &&
   python3 -u $SCRIPT --num-clusters 5 >log_5.txt &&

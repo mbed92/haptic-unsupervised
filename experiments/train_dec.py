@@ -141,8 +141,6 @@ def main(args):
     optimizer, scheduler = utils.ops.backprop_init(backprop_config)
 
     # train the clust_model model
-    best_model = None
-    best_clustering_metric = 9999.9
     with SummaryWriter(log_dir=log_dir) as writer:
         for run in range(args.runs):
 
@@ -172,25 +170,19 @@ def main(args):
                     writer.add_image(f"CLUSTERING/test/image", create_img(*exemplary_sample), step)
                 writer.flush()
 
-                # save the best trained clust_model under the clustering_loss
-                clustering_loss = losses[-1].get()
-                if clustering_loss is not None and clustering_loss < best_clustering_metric:
-                    torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
-                    best_clustering_metric = clustering_loss
-                    best_model = copy.deepcopy(clust_model)
-
                 print(f"Run {run}/{args.runs}. "
                       f"Epoch: {epoch} / {args.epochs_per_run}. "
-                      f"Best loss: {best_clustering_metric}")
+                      f"Best loss: {losses[-1].get()}")
 
             scheduler.step()
 
-    # verify the best model
-    if best_model is not None:
+    # verify the last model
+    if clust_model is not None:
         with torch.no_grad():
-            best_model.cpu()
-            emb_test = best_model.autoencoder.encoder(x_test.permute(0, 2, 1))
-            pred_test = torch.argmax(best_model(x_test.permute(0, 2, 1))['assignments'], 1)
+            clust_model.cpu()
+            torch.save(clust_model, os.path.join(writer.log_dir, 'clustering_test_model'))
+            emb_test = clust_model.autoencoder.encoder(x_test.permute(0, 2, 1))
+            pred_test = torch.argmax(clust_model(x_test.permute(0, 2, 1))['assignments'], 1)
             utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'emb_true'), emb_test, y_test, writer)
             utils.clustering.save_embeddings(os.path.join(writer.log_dir, f'emb_pred'), emb_test, pred_test, writer, 1)
             print(f"Test purity: {purity_score(y_test, pred_test)}\n"
@@ -204,7 +196,7 @@ if __name__ == '__main__':
                         default="/home/mbed/Projects/haptic-unsupervised/config/put.yaml")
     parser.add_argument('--num-clusters', type=int)
     parser.add_argument('--runs', type=int, default=50)  # play with runs and epochs_per_run
-    parser.add_argument('--epochs-per-run', type=int, default=200)
+    parser.add_argument('--epochs-per-run', type=int, default=50)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
