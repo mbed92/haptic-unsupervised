@@ -25,3 +25,14 @@ In the [experiments](experiments) folder there exist several scripts related to 
 
 * [Touching - Robot Soft 2019](https://drive.google.com/open?id=1NhUFJys-3D6-3BT6slBOmPYQa8bqx4cY) - force readings from
   the OptoForce sensor mounted on the tooltip of the robotic arm.
+
+## Tune results:
+* For PUT:
+```
+Best trial config: {'kernel': 7, 'activation': ReLU(), 'dropout': 0.1731244609139919, 'lr': 0.001993122444870846, 'weight_decay': 0.0003703603065553894}
+```
+
+* For TOUCHING:
+```
+Best trial config: {'kernel': 11, 'activation': GeLU(), 'dropout': 0.1300238908180922, 'lr': 0.0006863541995399743, 'weight_decay': 0.00018546443538449212}
+```

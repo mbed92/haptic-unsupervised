@@ -16,7 +16,8 @@ from utils.ops import train_epoch, test_epoch
 
 torch.manual_seed(42)
 
-CONFIG_FILE = "../config/put.yaml"
+# CONFIG_FILE = "../config/put.yaml"
+CONFIG_FILE = "../config/touching.yaml"
 
 
 def tune_train(config, const_config, train_dataloader, test_dataloader):
