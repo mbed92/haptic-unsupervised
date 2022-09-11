@@ -38,7 +38,7 @@ def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
     backprop_config.optimizer = torch.optim.AdamW
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs
+    backprop_config.epochs = args.epochs_ae
     backprop_config.weight_decay = args.weight_decay
 
     return train_autoencoder(train_dl, log_dir, args, backprop_config, autoencoder, device)
@@ -64,7 +64,7 @@ def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
     backprop_config.optimizer = torch.optim.AdamW
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs
+    backprop_config.epochs = args.epochs_ae
     backprop_config.weight_decay = args.weight_decay
 
     return train_autoencoder(train_dl, log_dir, args, backprop_config, autoencoder, device)
@@ -76,7 +76,7 @@ def train_autoencoder(total_dataset, log_dir, args, backprop_config, autoencoder
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
         optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
-        for epoch in range(args.epochs):
+        for epoch in range(args.epochs_ae):
             train_loss, exemplary_sample = autoencoders.ops.train_epoch(autoencoder, total_dataset, optimizer, device)
             writer.add_scalar(f'AE/train/{train_loss.name}', train_loss.get(), epoch)
             writer.add_scalar(f'AE/train/lr', optimizer.param_groups[0]['lr'], epoch)

@@ -54,7 +54,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     backprop_config.model = clust_model
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs
+    backprop_config.epochs = args.epochs_dec
     backprop_config.weight_decay = args.weight_decay
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
@@ -64,7 +64,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     with SummaryWriter(log_dir=log_dir) as writer:
 
         # train epoch
-        for epoch in range(args.epochs):
+        for epoch in range(args.epochs_dec):
             loss, metrics = dec.ops.train_epoch(clust_model, dataloader, optimizer, device)
             writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), epoch)
             for metric in metrics:
@@ -82,7 +82,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
                 best_loss = current_test_loss
                 [print(f"{m.name} {m.get()}") for m in metrics]
 
-            print(f"Epoch: {epoch} / {args.epochs}. Best loss: {best_loss}")
+            print(f"Epoch: {epoch} / {args.epochs_dec}. Best loss: {best_loss}")
 
         scheduler.step()
 
