@@ -28,7 +28,7 @@ def hardware_upload(model: torch.nn.Module, input_size: iter):
 
 
 def query(model, x):
-    outputs = model(x.permute(0, 2, 1)).permute(0, 2, 1)
+    outputs = model(x)
     loss = nn.MSELoss()(outputs, x)
     return outputs, loss
 

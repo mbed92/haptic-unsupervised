@@ -1,18 +1,83 @@
+import copy
+import os
 from argparse import Namespace
 
 import numpy as np
 import seaborn as sns
-from torch.utils.data import Dataset
-
-from .benchmark import RANDOM_SEED
-from .train_autoencoder import train_autoencoder
 import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
+import utils
+from models import autoencoders
+from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
+from . import clustering_dl_raw
+from .benchmark import RANDOM_SEED
 
 sns.set()
 
 
-def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: Namespace):
+def train_autoencoder(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: Namespace):
+    train_dl = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True)
+    test_dl = DataLoader(test_ds, batch_size=args.batch_size, shuffle=True)
+    data_shape = test_dl.dataset.signals.shape[-2:]
+
+    # set up a model (find the best config)
+    nn_params = TimeSeriesConvAutoencoderConfig()
+    nn_params.data_shape = data_shape
+    nn_params.kernel = args.kernel_size
+    nn_params.activation = nn.GELU()
+    nn_params.dropout = args.dropout
+    autoencoder = TimeSeriesConvAutoencoder(nn_params)
+    device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
+
+    # train the main autoencoder
+    backprop_config = autoencoders.ops.BackpropConfig()
+    backprop_config.model = autoencoder
+    backprop_config.optimizer = torch.optim.AdamW
+    backprop_config.lr = args.lr
+    backprop_config.eta_min = args.eta_min
+    backprop_config.epochs = args.epochs
+    backprop_config.weight_decay = args.weight_decay
+
+    # train
+    best_loss = 9999.9
+    best_model = None
+    with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
+        optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
+
+        for epoch in range(args.epochs):
+            train_loss = autoencoders.ops.train_epoch(autoencoder, train_dl, optimizer, device)
+            writer.add_scalar(f'AE/train/{train_loss.name}', train_loss.get(), epoch)
+            writer.add_scalar(f'AE/train/lr', optimizer.param_groups[0]['lr'], epoch)
+            writer.flush()
+            scheduler.step()
+
+            # test epoch
+            test_loss, exemplary_sample = autoencoders.ops.test_epoch(autoencoder, test_dl, device)
+            writer.add_scalar(f'AE/test/{test_loss.name}', test_loss.get(), epoch)
+            writer.add_image('AE/test/image', utils.clustering.create_img(*exemplary_sample), epoch)
+            writer.flush()
+
+            # save the best autoencoder
+            current_test_loss = test_loss.get()
+            if current_test_loss < best_loss:
+                torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+                best_loss = current_test_loss
+                best_model = copy.deepcopy(autoencoder)
+
+    return best_model
+
+
+def clustering_dl_latent(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: Namespace):
     torch.manual_seed(RANDOM_SEED)
+
+    # make dataset NxCxL
+    shape = train_ds.signals.shape
+    if len(shape) == 2:
+        train_ds.signals = np.expand_dims(train_ds.signals, 1)
+        test_ds.signals = np.expand_dims(test_ds.signals, 1)
 
     # train the autoencoder
     if args.load_path == "":
@@ -20,70 +85,12 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
     else:
         autoencoder = torch.load(args.load_path)
 
-    # set up the model
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # clust_model = ClusteringModel(DEFAULT_PARAMS["n_clusters"])
-    # clust_model.from_pretrained(args.load_path, x_train, y_train, device)
-    # summary(clust_model, input_size=data_shape)
+    # prepare a new dataset with latent representations
+    with torch.no_grad():
+        autoencoder = autoencoder.cpu()
+        x_train = torch.Tensor(np.transpose(train_ds.signals, [0, 2, 1])).cpu()
+        x_test = torch.Tensor(np.transpose(test_ds.signals, [0, 2, 1])).cpu()
+        train_ds.signals = autoencoder.encoder(x_train)
+        test_ds.signals = autoencoder.encoder(x_test)
 
-    # # set up the optimization
-    # train_dataloader = DataLoader(train_ds, batch_size=backprop_config.batch_size, shuffle=True)
-    # test_dataloader = DataLoader(test_ds, batch_size=backprop_config.batch_size, shuffle=True)
-    # optimizer, scheduler = utils.ops.backprop_init(backprop_config)
-
-    # # setup matplotlib
-    # n_rows = DEFAULT_PARAMS["n_rows"]
-    # n_cols = np.ceil(len(clustering_algorithms) / n_rows).astype(np.int)
-    # fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=(15, 15))
-    #
-    # # setup logdir
-    # log_file = os.path.join(log_dir, "log.txt")
-    # log_picture = os.path.join(log_dir, "tsne.png")
-    #
-    # # start benchmarking
-    # with open(log_file, 'w') as f:
-    #     with redirect_stdout(f):
-    #         for plot_num, (algorithm_name, algorithm) in enumerate(clustering_algorithms):
-    #             print(f"{algorithm_name} started...\n")
-    #
-    #             # inference the algorithm
-    #             t0 = time.time()
-    #             algorithm.fit(x)
-    #             t1 = time.time()
-    #
-    #             # get predictions
-    #             if hasattr(algorithm, "labels_"):
-    #                 y_pred = algorithm.labels_.astype(int)
-    #             else:
-    #                 y_pred = algorithm.predict(x)
-    #
-    #             # setup colors
-    #             colors = np.array(list(islice(cycle(COLOR_BASE), int(max(y_pred) + 1), )))
-    #             colors = np.append(colors, ["#000000"])
-    #
-    #             # plot TSNE
-    #             tsne = TSNE(n_components=2)
-    #             x_tsne = tsne.fit_transform(x)
-    #             ax = axs.reshape(-1)[plot_num]
-    #             ax.set_title(algorithm_name, size=18)
-    #             ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
-    #
-    #             # save embeddings
-    #             file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")
-    #             pickle.dump({
-    #                 "tsne": x_tsne,
-    #                 "subervised_labels": y_pred
-    #             }, file_handler)
-    #
-    #             # print metrics
-    #             print(f"{algorithm_name} finished in {t1 - t0}.")
-    #             for sklearn_metric_name, sklearn_metric in clustering_metrics_x_labels:
-    #                 print(f"{sklearn_metric_name} achieved {sklearn_metric(x, y_pred)}.")
-    #             for sklearn_metric_name, sklearn_metric in clustering_metrics_true_pred:
-    #                 print(f"{sklearn_metric_name} achieved {sklearn_metric(y, y_pred)}.")
-    #             print("===========================\n\n")
-    #
-    #         # save tsne
-    #         plt.savefig(log_picture, dpi=fig.dpi)
-    #         plt.show()
-    #         plt.close(fig)
+    clustering_dl_raw(train_ds, test_ds, log_dir, args)

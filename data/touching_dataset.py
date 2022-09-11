@@ -56,7 +56,7 @@ class TouchingDataset(Dataset):
         return 0
 
     def __getitem__(self, index):
-        return self.signals[index], self.labels[index]
+        return self.signals[index].T, self.labels[index]
 
     def __add__(self, other_touching):
         self.mean = (self.mean + other_touching.mean) / 2.0

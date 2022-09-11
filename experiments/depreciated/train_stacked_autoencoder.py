@@ -12,7 +12,7 @@ import submodules.haptic_transformer.utils as utils_haptr
 import utils
 from data import EmbeddingDataset, helpers
 from models.autoencoders.sae import TimeSeriesAutoencoderConfig, TimeSeriesAutoencoder
-from utils.ops import train_epoch, test_epoch
+from models.autoencoders.ops import train_epoch, test_epoch
 
 torch.manual_seed(42)
 
@@ -39,7 +39,7 @@ def main(args):
     nn_params.activation = nn.GELU()
     nn_params.dropout = args.dropout
     autoencoder = TimeSeriesAutoencoder(nn_params)
-    device = utils.ops.hardware_upload(autoencoder, nn_params.data_shape)
+    device = models.autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
     # start pretraining SAE auto encoders
     if args.pretrain_sae:
@@ -49,7 +49,7 @@ def main(args):
         for i, sae in enumerate(autoencoder.sae_modules):
 
             # setup backprop config for the full AE
-            backprop_config_sae = utils.ops.BackpropConfig()
+            backprop_config_sae = models.autoencoders.ops.BackpropConfig()
             backprop_config_sae.optimizer = torch.optim.AdamW
             backprop_config_sae.model = sae
             backprop_config_sae.lr = args.lr_sae
@@ -58,7 +58,7 @@ def main(args):
             backprop_config_sae.weight_decay = args.weight_decay_sae
 
             with SummaryWriter(log_dir=os.path.join(log_dir, f'sae{i}')) as writer:
-                optimizer, scheduler = utils.ops.backprop_init(backprop_config_sae)
+                optimizer, scheduler = models.autoencoders.ops.backprop_init(backprop_config_sae)
 
                 # run train/test epoch
                 for epoch in range(args.epochs_sae):
@@ -78,7 +78,7 @@ def main(args):
                 test_dataloader = EmbeddingDataset.gather_embeddings(sae.encoder, test_dataloader, device)
 
     # train the main autoencoder
-    backprop_config_ae = utils.ops.BackpropConfig()
+    backprop_config_ae = models.autoencoders.ops.BackpropConfig()
     backprop_config_ae.model = autoencoder
     backprop_config_ae.optimizer = torch.optim.AdamW
     backprop_config_ae.lr = args.lr_ae
@@ -90,7 +90,7 @@ def main(args):
     best_loss = 9999.9
     best_model = None
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
-        optimizer, scheduler = utils.ops.backprop_init(backprop_config_ae)
+        optimizer, scheduler = models.autoencoders.ops.backprop_init(backprop_config_ae)
 
         for epoch in range(args.epochs_ae):
             train_loss = train_epoch(autoencoder, main_train_dataloader, optimizer, device)

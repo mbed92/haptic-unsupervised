@@ -16,10 +16,8 @@ from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
-import utils
-import utils.sklearn_benchmark
 from data import helpers
-from models import dec
+from models import dec, autoencoders
 from .benchmark import DEFAULT_PARAMS, RANDOM_SEED, COLOR_BASE
 
 sns.set()
@@ -52,14 +50,14 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
     summary(clust_model, input_size=data_shape)
 
     # setup optimizer
-    backprop_config = utils.ops.BackpropConfig()
+    backprop_config = autoencoders.ops.BackpropConfig()
     backprop_config.optimizer = torch.optim.AdamW
     backprop_config.model = clust_model
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
     backprop_config.epochs = args.epochs
     backprop_config.weight_decay = args.weight_decay
-    optimizer, scheduler = utils.ops.backprop_init(backprop_config)
+    optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # train the clust_model model
     best_loss = 9999.9
