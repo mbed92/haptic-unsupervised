@@ -3,6 +3,7 @@ import os
 
 import torch
 import yaml
+from sklearn.preprocessing import StandardScaler
 
 import experiments
 import submodules.haptic_transformer.utils as utils_haptr
@@ -22,6 +23,9 @@ def main(args):
     # load the dataset
     train_ds, val_ds, test_ds = helpers.load_dataset(config)
     total_dataset = train_ds + test_ds
+
+    if len(total_dataset.signals[0].shape) == 1:
+        total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # run a specified experiment
     if args.experiment_name == "clustering_ml_raw":
@@ -43,7 +47,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
+    parser.add_argument('--dataset-config-file', type=str, default="./config/touching.yaml")
     parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=256)

@@ -6,7 +6,6 @@ import numpy as np
 import seaborn as sns
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -98,9 +97,8 @@ def train_autoencoder(total_dataset, log_dir, args, backprop_config, autoencoder
 
 def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace):
     torch.manual_seed(RANDOM_SEED)
-    total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
-    # make dataset NxCxL
+    # prepare dataset (can be NxC or NxCxL)
     shape = total_dataset.signals.shape
     create_fc_autoencoder = False
     if len(shape) == 2:
@@ -123,6 +121,6 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace):
             x_train = torch.Tensor(total_dataset.signals).cpu()
         else:
             x_train = torch.Tensor(np.transpose(total_dataset.signals, [0, 2, 1])).cpu()
-        total_dataset.signals = autoencoder.encoder(x_train)
+        total_dataset.signals = autoencoder.encoder(x_train).numpy()
 
     clustering_dl_raw(total_dataset, log_dir, args)

@@ -109,11 +109,13 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
 
             # plot TSNE
             tsne = TSNE(n_components=2)
-            x_tsne = tsne.fit_transform(total_dataset.signals)
-            y_tsne = tsne.fit_transform(centroids)
+            num_points = len(total_dataset.signals)
+            embeddings = np.concatenate([total_dataset.signals, centroids])
+            x_tsne = tsne.fit_transform(embeddings)
+
             ax.set_title('DEC', size=18)
-            ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
-            ax.scatter(y_tsne[:, 0], y_tsne[:, 1], c='black', s=200)
+            ax.scatter(x_tsne[:num_points, 0], x_tsne[:num_points, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
+            ax.scatter(x_tsne[num_points:, 0], x_tsne[num_points:, 1], c='black', s=200)
 
             # save embeddings
             file_handler = open(os.path.join(log_dir, "dec.pickle"), "wb")
