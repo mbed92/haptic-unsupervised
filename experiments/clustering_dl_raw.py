@@ -23,11 +23,10 @@ from .benchmark import DEFAULT_PARAMS, RANDOM_SEED, COLOR_BASE
 sns.set()
 
 
-def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: Namespace):
+def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     torch.manual_seed(RANDOM_SEED)
 
     # clustering model requires flattened data
-    total_dataset = train_ds + test_ds
     if len(total_dataset.signals.shape) > 2:
         total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
     total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
@@ -38,7 +37,7 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    shape = train_ds.signals.shape
+    shape = total_dataset.signals.shape
     if len(shape) > 2:
         data_shape = shape[-2] * shape[-1]
     else:
@@ -110,7 +109,7 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
 
             # plot TSNE
             tsne = TSNE(n_components=2)
-            x_tsne = tsne.fit_transform(train_ds.signals)
+            x_tsne = tsne.fit_transform(total_dataset.signals)
             y_tsne = tsne.fit_transform(centroids)
             ax.set_title('DEC', size=18)
             ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)

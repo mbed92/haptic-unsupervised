@@ -33,9 +33,8 @@ def setup_params(x, params):
     return x, connectivity
 
 
-def clustering_ml_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str):
+def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
     np.random.seed(RANDOM_SEED)
-    total_dataset = train_ds + test_ds
     x, y = total_dataset.signals, total_dataset.labels
 
     # flatten if needed

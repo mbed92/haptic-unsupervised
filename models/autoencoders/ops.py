@@ -41,8 +41,9 @@ def train(model, inputs, optimizer):
     return outputs, loss
 
 
-def train_epoch(model, dataloader, optimizer, device):
+def train_epoch(model, dataloader, optimizer, device, add_exemplary_sample=True):
     reconstruction_loss = Mean("Reconstruction Loss")
+    exemplary_sample = None
     model.train(True)
 
     for data in dataloader:
@@ -50,7 +51,13 @@ def train_epoch(model, dataloader, optimizer, device):
         outputs, loss = train(model, batch_data.to(device).float(), optimizer)
         reconstruction_loss.add(loss.item())
 
-    return reconstruction_loss
+        # add an exemplary sample
+        if add_exemplary_sample and exemplary_sample is None and len(outputs[0].shape) == 3:
+            y_pred = outputs[0].detach().cpu().numpy().T
+            y_true = data[0][0].detach().cpu().numpy().T
+            exemplary_sample = [y_pred, y_true]
+
+    return reconstruction_loss, exemplary_sample
 
 
 def test_epoch(model, dataloader, device, add_exemplary_sample=True):
@@ -67,7 +74,7 @@ def test_epoch(model, dataloader, device, add_exemplary_sample=True):
             reconstruction_loss.add(loss.item())
 
             # add an exemplary sample
-            if add_exemplary_sample and exemplary_sample is None:
+            if add_exemplary_sample and exemplary_sample is None and len(outputs[0].shape) == 3:
                 y_pred = outputs[0].detach().cpu().numpy().T
                 y_true = data[0][0].detach().cpu().numpy().T
                 exemplary_sample = [y_pred, y_true]

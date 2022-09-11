@@ -21,24 +21,29 @@ def main(args):
 
     # load the dataset
     train_ds, val_ds, test_ds = helpers.load_dataset(config)
+    total_dataset = train_ds + test_ds
 
     # run a specified experiment
     if args.experiment_name == "clustering_ml_raw":
-        experiments.clustering_ml_raw(train_ds, test_ds, log_dir)
+        experiments.clustering_ml_raw(total_dataset, log_dir)
 
     elif args.experiment_name == "clustering_dl_raw":
-        experiments.clustering_dl_raw(train_ds, test_ds, log_dir, args)
+        experiments.clustering_dl_raw(total_dataset, log_dir, args)
 
     elif args.experiment_name == "clustering_dl_latent":
-        experiments.clustering_dl_latent(train_ds, test_ds, log_dir, args)
+        experiments.clustering_dl_latent(total_dataset, log_dir, args)
 
     # elif args.experiment_name == "clustering_dl_latent_with_attention":
-    #     experiments.clustering.cluster_raw_signals_ml(train_ds, test_ds, log_dir)
+    #     experiments.clustering.clustering_dl_latent_with_attention(train_ds, test_ds, log_dir)
+
+    else:
+        print("Unknown experiment name. Available choices are: "
+              "clustering_ml_raw, clustering_dl_raw, clustering_dl_latent, clustering_dl_latent_with_attention")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-config-file', type=str, default="./config/touching.yaml")
+    parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
     parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=256)
