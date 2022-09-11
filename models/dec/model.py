@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from sklearn.cluster import KMeans
 
-N_INITIAL_TRIALS = 30
-
 
 class ClusteringModel(nn.Module):
 
@@ -31,7 +29,7 @@ class ClusteringModel(nn.Module):
         return centroids
 
     @staticmethod
-    def set_kmeans_centroids(embeddings, num_centroids, size_centroids):
+    def set_kmeans_centroids(embeddings, num_centroids):
         method = KMeans(n_clusters=num_centroids)
         method.fit_predict(embeddings)
         initial_centroids = method.cluster_centers_

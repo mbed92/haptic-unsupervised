@@ -47,8 +47,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
-    parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
+    parser.add_argument('--dataset-config-file', type=str, default="./config/touching.yaml")
+    parser.add_argument('--experiment-name', type=str, default="clustering_dl_raw")
     parser.add_argument('--epochs-ae', type=int, default=1000)
     parser.add_argument('--epochs-dec', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=256)

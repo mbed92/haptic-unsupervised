@@ -10,7 +10,6 @@ import numpy as np
 import seaborn as sns
 import torch
 from sklearn.manifold import TSNE
-from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -29,7 +28,6 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     # clustering model requires flattened data
     if len(total_dataset.signals.shape) > 2:
         total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
-    total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # get all the data for further calculations (remember that you always need to iterate over some bigger datasets)
     dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
@@ -44,7 +42,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
         data_shape = shape[-1]
 
     clust_model = dec.ClusteringModel(DEFAULT_PARAMS["n_clusters"], data_shape)
-    clust_model.centroids = clust_model.set_kmeans_centroids(x_train, DEFAULT_PARAMS["n_clusters"], data_shape)
+    clust_model.centroids = clust_model.set_kmeans_centroids(x_train, DEFAULT_PARAMS["n_clusters"])
     clust_model.to(device)
     summary(clust_model, input_size=data_shape)
 
