@@ -8,15 +8,16 @@ from utils.metrics import Mean
 from .model import ClusteringModel
 
 
-def query(model, inputs, target_distribution):
+def query(model, inputs):
     outputs = model(inputs)
-    clustering_loss = nn.KLDivLoss(reduction="batchmean")(outputs.log(), target_distribution)
+    target = distribution_hardening(outputs).detach()
+    clustering_loss = nn.KLDivLoss(reduction="batchmean")(outputs.log(), target)
     return outputs, clustering_loss
 
 
-def train(model, inputs, target_distribution, optimizer):
+def train(model, inputs, optimizer):
     optimizer.zero_grad()
-    outputs, loss = query(model, inputs, target_distribution)
+    outputs, loss = query(model, inputs)
     loss.backward()
     optimizer.step()
     return outputs, loss
@@ -30,8 +31,8 @@ def train_epoch(model, dataloader, optimizer, device):
 
     model.train(True)
     for data in dataloader:
-        batch_data, batch_labels, target_probs = data
-        outputs, loss = train(model, batch_data.to(device), target_probs.to(device), optimizer)
+        batch_data, batch_labels = data
+        outputs, loss = train(model, batch_data.to(device), optimizer)
         clustering_loss.add(loss.item())
 
         x, y = outputs.detach().cpu().numpy(), batch_labels.detach().cpu().numpy()
@@ -48,15 +49,16 @@ def train_epoch(model, dataloader, optimizer, device):
     return clustering_loss, metrics
 
 
-def add_soft_predictions(model: ClusteringModel, x_data: torch.Tensor, y_data: torch.Tensor,
+def add_soft_predictions(model: ClusteringModel,
+                         x_data: torch.Tensor, y_data: torch.Tensor,
                          device: torch.device, batch_size: int):
-    model.train(False)
     model.cpu()  # remember that loading a whole dataset might plug the whole (GPU) RAM
+    model.train(False)
     with torch.no_grad():
         p_data = distribution_hardening(model(x_data))
-        p_data.requires_grad = False
-        model.to(device)
-        return ClusteringDataset.with_target_probs(x_data, y_data, p_data, batch_size=batch_size)
+
+    model.to(device)
+    return ClusteringDataset.with_target_probs(x_data, y_data, p_data, batch_size=batch_size)
 
 # def test_epoch(model, dataloader, device):
 #     reconstruction_loss, clustering_loss = Mean("Reconstruction Loss"), Mean("Clustering Loss")

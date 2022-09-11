@@ -10,6 +10,7 @@ import numpy as np
 import seaborn as sns
 import torch
 from sklearn.manifold import TSNE
+from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -31,6 +32,7 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
     total_dataset = train_ds + test_ds
     if len(total_dataset.signals.shape) > 2:
         total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
+    total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # get all the data for further calculations (remember that you always need to iterate over some bigger datasets)
     dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
@@ -38,7 +40,6 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
 
     # setup a model
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     shape = train_ds.signals.shape
     if len(shape) > 2:
         data_shape = shape[-2] * shape[-1]
@@ -46,6 +47,8 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
         data_shape = shape[-1]
 
     clust_model = dec.ClusteringModel(DEFAULT_PARAMS["n_clusters"], data_shape)
+    clust_model.centroids = clust_model.set_kmeans_centroids(x_train, DEFAULT_PARAMS["n_clusters"], data_shape)
+    clust_model.to(device)
     summary(clust_model, input_size=data_shape)
 
     # setup optimizer
@@ -54,7 +57,7 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
     backprop_config.model = clust_model
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs_per_run * args.runs
+    backprop_config.epochs = args.epochs
     backprop_config.weight_decay = args.weight_decay
     optimizer, scheduler = utils.ops.backprop_init(backprop_config)
 
@@ -62,31 +65,29 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
     best_loss = 9999.9
     best_model = None
     with SummaryWriter(log_dir=log_dir) as writer:
-        for run in range(args.runs):
 
-            # create a ClusteringDataset that consists of x, y, and soft assignments
-            train_dataloader = dec.ops.add_soft_predictions(clust_model, x_train, y_train, device, args.batch_size)
+        # train epoch
+        for epoch in range(args.epochs):
+            loss, metrics = dec.ops.train_epoch(clust_model, dataloader, optimizer, device)
+            writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), epoch)
+            for metric in metrics:
+                writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), epoch)
+            writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], epoch)
 
-            for epoch in range(args.epochs_per_run):
-                step = run * args.epochs_per_run + epoch
-
-                # train epoch
-                loss, metrics = dec.ops.train_epoch(clust_model, train_dataloader, optimizer, device)
-                writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), step)
-                for metric in metrics:
-                    writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), step)
-                writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], step)
-                writer.flush()
-                print(f"Run {run}/{args.runs}. Epoch: {epoch} / {args.epochs_per_run}. Best loss: {loss.get()}")
-
+            writer.flush()
             scheduler.step()
 
-            # save the best model
+            # save the best model and log metrics
             current_test_loss = loss.get()
             if current_test_loss < best_loss:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_model'))
-                best_loss = current_test_loss
                 best_model = copy.deepcopy(clust_model)
+                best_loss = current_test_loss
+                [print(f"{m.name} {m.get()}") for m in metrics]
+
+            print(f"Epoch: {epoch} / {args.epochs}. Best loss: {best_loss}")
+
+        scheduler.step()
 
     # verify the last model
     if best_model is not None:
@@ -98,6 +99,7 @@ def clustering_dl_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str, args: N
 
             x, y = total_dataset.signals, total_dataset.labels
             x = np.reshape(x, newshape=(x.shape[0], -1))
+
             outputs = best_model(torch.Tensor(x))
             y_pred = torch.argmax(outputs, -1).detach().cpu().numpy()
 

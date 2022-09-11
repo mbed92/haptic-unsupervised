@@ -28,6 +28,7 @@ def main(args):
 
     elif args.experiment_name == "clustering_dl_raw":
         experiments.clustering_dl_raw(train_ds, test_ds, log_dir, args)
+
     # elif args.experiment_name == "clustering_dl_latent":
     #     experiments.clustering.cluster_raw_signals_ml(train_ds, test_ds, log_dir)
     # elif args.experiment_name == "clustering_dl_latent_with_attention":
@@ -36,18 +37,15 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset-config-file', type=str, default="./config/touching.yaml")
+    parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
     parser.add_argument('--experiment-name', type=str, default="clustering_dl_raw")
     parser.add_argument('--epochs', type=int, default=1000)
-    parser.add_argument('--epochs-per-run', type=int, default=100)
-    parser.add_argument('--runs', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0.2)
     parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--eta-min', type=float, default=1e-4)
-    parser.add_argument('--load-path', type=str,
-                        default="/home/mbed/Projects/haptic-unsupervised/clustering_dl_raw/saved_model/full")
+    parser.add_argument('--load-path', type=str, default="")
     args, _ = parser.parse_known_args()
     main(args)
