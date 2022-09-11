@@ -27,7 +27,7 @@ def main(args):
 
     # run a specified experiment
     if args.experiment_name == "clustering":
-        experiments.clustering.cluster_raw_signals_ml(train_ds, test_ds)
+        experiments.clustering.cluster_raw_signals_ml(train_ds, test_ds, log_dir)
 
 
 if __name__ == '__main__':

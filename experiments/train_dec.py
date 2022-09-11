@@ -15,7 +15,7 @@ from data import helpers
 from data.clustering_dataset import ClusteringDataset
 from models.dec import ClusteringModel
 from utils.clustering import distribution_hardening, create_img
-from utils.metrics import clustering_accuracy, nmi_score, rand_score, purity_score, Mean
+from utils.metrics import clustering_accuracy_torch, nmi_score, rand_score, purity_score, Mean
 
 torch.manual_seed(42)
 alpha = 0.2
@@ -54,7 +54,7 @@ def train_epoch(model, dataloader, optimizer, device):
 
         # gather metrics
         predictions = torch.argmax(outputs['assignments'], 1)
-        accuracy.add(clustering_accuracy(batch_labels, predictions))
+        accuracy.add(clustering_accuracy_torch(batch_labels, predictions))
         purity.add(purity_score(batch_labels, predictions))
         nmi.add(nmi_score(batch_labels, predictions))
         rand_index.add(rand_score(batch_labels, predictions))
@@ -79,7 +79,7 @@ def test_epoch(model, dataloader, device, add_exemplary_sample=True):
 
             # gather metrics
             predictions = torch.argmax(outputs['assignments'], 1)
-            accuracy.add(clustering_accuracy(batch_labels, predictions))
+            accuracy.add(clustering_accuracy_torch(batch_labels, predictions))
             purity.add(purity_score(batch_labels, predictions))
             nmi.add(nmi_score(batch_labels, predictions))
             rand_index.add(rand_score(batch_labels, predictions))

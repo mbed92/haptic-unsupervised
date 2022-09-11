@@ -44,11 +44,7 @@ def rand_score(y_true: torch.Tensor, y_pred: torch.Tensor):
     return metrics.rand_score(y_true, y_pred)
 
 
-def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
-    assert y_true.shape == y_pred.shape  # it has to be rectangular to make sense
-    y_true = untorch(y_true)
-    y_pred = untorch(y_pred)
-
+def clustering_accuracy(y_true: np.ndarray, y_pred: np.ndarray):
     num_samples = y_pred.shape[0]
     sample_idx = np.arange(num_samples)
     indices = np.stack([sample_idx, y_pred, y_true], 1).astype(np.int)
@@ -60,6 +56,13 @@ def clustering_accuracy(y_true: torch.Tensor, y_pred: torch.Tensor):
     row_ind, col_ind = linear_sum_assignment(assignment_cost)
     gathered = data[row_ind, col_ind]  # gather_nd
     return np.sum(gathered) / num_samples
+
+
+def clustering_accuracy_torch(y_true: torch.Tensor, y_pred: torch.Tensor):
+    assert y_true.shape == y_pred.shape  # it has to be rectangular to make sense
+    y_true = untorch(y_true)
+    y_pred = untorch(y_pred)
+    return clustering_accuracy(y_true, y_pred)
 
 
 class Mean:

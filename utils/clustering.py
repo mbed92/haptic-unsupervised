@@ -9,7 +9,7 @@ from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor
 
-from utils.metrics import clustering_accuracy
+from utils.metrics import clustering_accuracy_torch
 
 
 def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,
@@ -58,6 +58,6 @@ def kmeans(x_train, x_test, expected_num_clusters):
 
 def print_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
     print('===================')
-    print('| KMeans train accuracy:', clustering_accuracy(y_train, y_hat_train),
-          '| KMeans test accuracy:', clustering_accuracy(y_test, y_hat_test))
+    print('| KMeans train accuracy:', clustering_accuracy_torch(y_train, y_hat_train),
+          '| KMeans test accuracy:', clustering_accuracy_torch(y_test, y_hat_test))
     print('===================')

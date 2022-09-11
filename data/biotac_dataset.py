@@ -15,11 +15,11 @@ PALM_ORIENTATION_IDX = -1
 class BiotacDataset(Dataset):
 
     def __init__(self, path, key, standarize=True):
-
         with open(path, 'rb') as f:
             pickled = pickle.load(f)
             self.signals = pickled[key][:, SIGNAL_START:SIGNAL_END]
-            self.labels = pickled[key][:, [CLASS_NAME_IDX, OUTCOME_IDX, PALM_ORIENTATION_IDX]]
+            self.labels = pickled[key][:, CLASS_NAME_IDX]
+            self.meta = pickled[key][:, [OUTCOME_IDX, PALM_ORIENTATION_IDX]]
 
         self.num_classes = NUM_CLASSES_TRAIN if key == "train" else NUM_CLASSES_TEST
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
