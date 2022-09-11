@@ -35,9 +35,7 @@ class BiotacDataset(Dataset):
         return len(self.signals)
 
     def __getitem__(self, index):
-        sig = self.signals[index]['label']
-        label = self.signals[index]['label']
-        return sig, label
+        return self.signals[index], self.labels[index]
 
     def __add__(self, other_biotac):
         self.mean = (self.mean + other_biotac.mean) / 2.0

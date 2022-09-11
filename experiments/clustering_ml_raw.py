@@ -1,4 +1,5 @@
 import os.path
+import pickle
 import time
 from contextlib import redirect_stdout
 from itertools import islice, cycle
@@ -6,39 +7,15 @@ from itertools import islice, cycle
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from sklearn import cluster
 from sklearn.manifold import TSNE
 from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset
 
 import utils.sklearn_benchmark
+from .benchmark import RANDOM_SEED, DEFAULT_PARAMS, COLOR_BASE
 
 sns.set()
-
-RANDOM_SEED = 0
-DEFAULT_PARAMS = {
-    "quantile": 0.3,
-    "eps": 0.3,
-    "damping": 0.9,
-    "preference": -200,
-    "n_neighbors": 3,
-    "n_clusters": 4,  # looking for: macro, fine roughness, hardness/softness, and friction
-    "min_samples": 7,
-    "xi": 0.05,
-    "min_cluster_size": 0.1,
-}
-COLOR_BASE = [
-    "#377eb8",
-    "#ff7f00",
-    "#4daf4a",
-    "#f781bf",
-    "#a65628",
-    "#984ea3",
-    "#999999",
-    "#e41a1c",
-    "#dede00",
-]
 
 
 def setup_params(x, params):
@@ -53,10 +30,10 @@ def setup_params(x, params):
     # make connectivity symmetric
     connectivity = 0.5 * (connectivity + connectivity.T)
 
-    return x, params, connectivity
+    return x, connectivity
 
 
-def cluster_raw_signals_ml(train_ds: Dataset, test_ds: Dataset, log_dir: str):
+def clustering_ml_raw(train_ds: Dataset, test_ds: Dataset, log_dir: str):
     np.random.seed(RANDOM_SEED)
     total_dataset = train_ds + test_ds
     x, y = total_dataset.signals, total_dataset.labels
@@ -66,13 +43,13 @@ def cluster_raw_signals_ml(train_ds: Dataset, test_ds: Dataset, log_dir: str):
         x = np.reshape(x, newshape=(x.shape[0], -1))
 
     # setup clustering algorithms
-    x, params, connectivity = setup_params(x, DEFAULT_PARAMS)
-    clustering_algorithms = utils.sklearn_benchmark.get_sklearn_clustering_algorithms(params, connectivity)
+    x, connectivity = setup_params(x, DEFAULT_PARAMS)
+    clustering_algorithms = utils.sklearn_benchmark.get_sklearn_clustering_algorithms(DEFAULT_PARAMS, connectivity)
     clustering_metrics_x_labels = utils.sklearn_benchmark.get_sklearn_clustering_metrics_x_labels()
     clustering_metrics_true_pred = utils.sklearn_benchmark.get_sklearn_clustering_metrics_true_pred()
 
     # setup matplotlib
-    n_rows = 2
+    n_rows = DEFAULT_PARAMS["n_rows"]
     n_cols = np.ceil(len(clustering_algorithms) / n_rows).astype(np.int)
     fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=(15, 15))
 
@@ -107,6 +84,13 @@ def cluster_raw_signals_ml(train_ds: Dataset, test_ds: Dataset, log_dir: str):
                 ax = axs.reshape(-1)[plot_num]
                 ax.set_title(algorithm_name, size=18)
                 ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
+
+                # save embeddings
+                file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")
+                pickle.dump({
+                    "tsne": x_tsne,
+                    "subervised_labels": y_pred
+                }, file_handler)
 
                 # print metrics
                 print(f"{algorithm_name} finished in {t1 - t0}.")

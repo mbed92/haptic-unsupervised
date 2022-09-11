@@ -12,8 +12,7 @@ from torchvision.transforms import ToTensor
 from utils.metrics import clustering_accuracy_torch
 
 
-def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,
-                    global_step: int = 0):
+def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter, global_step: int = 0):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
