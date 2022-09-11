@@ -1,0 +1,3 @@
+dataset_type: "biotac2"
+dataset_folder: "/home/mbed/Projects/datasets"
+dataset_file: "biotac2.pickle"

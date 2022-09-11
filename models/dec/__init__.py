@@ -1,1 +1,2 @@
-from .clustering import ClusteringModel
+from . import ops
+from .model import ClusteringModel

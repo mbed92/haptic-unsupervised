@@ -1,1 +1,1 @@
-from . import clustering, ops, metrics
+from . import clustering, metrics

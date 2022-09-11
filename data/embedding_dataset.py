@@ -15,8 +15,10 @@ class EmbeddingDataset(Dataset):
 
     @staticmethod
     def gather_embeddings(model: nn.Module, old_dataloader: DataLoader, device: int):
+        model.cpu()
         with torch.no_grad():
             x = [torch.FloatTensor(sample[0]) for sample in old_dataloader.dataset]
-            x = torch.stack(x, 0)
-            embeddings = model(x.permute(0, 2, 1).to(device)).permute(0, 2, 1)
+            x = torch.stack(x, 0).permute(0, 2, 1)
+            embeddings = model(x).permute(0, 2, 1)
+        model.to(device)
         return DataLoader(EmbeddingDataset(embeddings.cpu()), batch_size=old_dataloader.batch_size, shuffle=True)
