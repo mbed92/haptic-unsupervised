@@ -75,7 +75,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             # save the best model and log metrics
             current_test_loss = loss.get()
             if current_test_loss < best_loss:
-                torch.save(clust_model, os.path.join(writer.log_dir, 'best_model'))
+                torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
                 best_model = copy.deepcopy(clust_model)
                 best_loss = current_test_loss
                 [print(f"{m.name} {m.get()}") for m in metrics]

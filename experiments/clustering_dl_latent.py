@@ -54,7 +54,7 @@ def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
     nn_params.kernel = args.kernel_size
     nn_params.activation = nn.GELU()
     nn_params.dropout = args.dropout
-    nn_params.latent_size = 10
+    nn_params.latent_size = args.latent_size
     autoencoder = FullyConnectedAutoencoder(nn_params)
     device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -70,7 +70,7 @@ def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
     return train_autoencoder(train_dl, log_dir, args, backprop_config, autoencoder, device)
 
 
-def train_autoencoder(total_dataset, log_dir, args, backprop_config, autoencoder, device):
+def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config, autoencoder, device):
     best_loss = 9999.9
     best_model = None
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
@@ -98,18 +98,20 @@ def train_autoencoder(total_dataset, log_dir, args, backprop_config, autoencoder
 def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace):
     torch.manual_seed(RANDOM_SEED)
 
-    # prepare dataset (can be NxC or NxCxL)
+    # prepare the autoencoder (should work on data with shapes NxC or NxCxL)
     shape = total_dataset.signals.shape
     create_fc_autoencoder = False
     if len(shape) == 2:
         create_fc_autoencoder = True
 
-    # train the autoencoder
+    # train & save or load the autoencoder
     if args.load_path == "":
         if create_fc_autoencoder:
             autoencoder = train_fc_autoencoder(total_dataset, log_dir, args)
         else:
             autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
+
+        torch.save(autoencoder, os.path.join(log_dir, 'test_model'))
     else:
         autoencoder = torch.load(args.load_path)
 

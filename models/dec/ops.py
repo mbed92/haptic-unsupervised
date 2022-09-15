@@ -33,15 +33,23 @@ def train_epoch(model, dataloader, optimizer, device):
         outputs, loss = train(model, batch_data.to(device), optimizer)
         clustering_loss.add(loss.item())
 
+        # gather metrics
         x, y = outputs.detach().cpu().numpy(), batch_labels.detach().cpu().numpy()
-        y_hat = torch.argmax(outputs, -1).detach().cpu().numpy()
-        for i in range(len(clustering_metrics_x_labels)):
-            m = clustering_metrics_x_labels[i][1]
-            metrics[i].add(m(x, y))
+        y_hat = torch.argmax(outputs, -1)
 
-        for i in range(len(clustering_metrics_true_pred)):
-            m = clustering_metrics_true_pred[i][1]
-            ii = len(clustering_metrics_x_labels) + i
-            metrics[ii].add(m(y, y_hat))
+        # break when the training collapsed and all samples are in one cluster
+        num_of_pred_clusters = torch.unique(y_hat).shape[0]
+        if num_of_pred_clusters > 1:
+            y_hat = y_hat.detach().cpu().numpy()
+            for i in range(len(clustering_metrics_x_labels)):
+                m = clustering_metrics_x_labels[i][1]
+                metrics[i].add(m(x, y_hat))
+
+            for i in range(len(clustering_metrics_true_pred)):
+                m = clustering_metrics_true_pred[i][1]
+                ii = len(clustering_metrics_x_labels) + i
+                metrics[ii].add(m(y, y_hat))
+        else:
+            break
 
     return clustering_loss, metrics

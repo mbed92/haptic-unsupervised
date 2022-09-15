@@ -5,14 +5,12 @@ import PIL
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.cluster import KMeans
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import ToTensor
 
-from utils.metrics import clustering_accuracy_torch
 
-
-def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter, global_step: int = 0):
+def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, writer: SummaryWriter,
+                    global_step: int = 0):
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -44,19 +42,5 @@ def create_img(arr1, arr2):
 
 
 def distribution_hardening(q):
-    p = torch.div(q ** 2, torch.sum(q, 0, keepdim=True))
-    return torch.div(p, torch.sum(p, 1, keepdim=True))
-
-
-def kmeans(x_train, x_test, expected_num_clusters):
-    kmeans = KMeans(n_clusters=expected_num_clusters, n_init=100, max_iter=500)
-    train_result = torch.Tensor(kmeans.fit_predict(x_train))
-    test_result = torch.Tensor(kmeans.predict(x_test))
-    return train_result, test_result
-
-
-def print_clustering_accuracy(y_train, y_hat_train, y_test, y_hat_test):
-    print('===================')
-    print('| KMeans train accuracy:', clustering_accuracy_torch(y_train, y_hat_train),
-          '| KMeans test accuracy:', clustering_accuracy_torch(y_test, y_hat_test))
-    print('===================')
+    p = torch.nan_to_num(torch.div(q ** 2, torch.sum(q, 1, keepdim=True)))
+    return torch.nan_to_num(torch.div(p, torch.sum(p, 1, keepdim=True)))
