@@ -16,11 +16,10 @@ class ClusteringModel(nn.Module):
         return self.t_student(embeddings)
 
     def t_student(self, x):
-        dist = torch.sum((x.unsqueeze(1) - self.centroids) ** 2, 2)
-        q = 1.0 / (1.0 + (dist / self.alpha))
-        q = torch.pow(q, (self.alpha + 1.0) / 2.0)
-        a = torch.sum(q, 1, keepdim=True)
-        return q / a
+        dist = torch.linalg.norm(x.unsqueeze(1) - self.centroids, dim=-1, ord=2)
+        q = 1.0 / (1.0 + dist / self.alpha)
+        q = q ** (self.alpha + 1.0) / 2.0
+        return q / torch.sum(q, -1, keepdim=True)
 
     @staticmethod
     def set_random_centroids(num_centroids, size_centroids):
