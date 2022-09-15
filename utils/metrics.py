@@ -80,4 +80,6 @@ class Mean:
         self._data.append(value)
 
     def get(self):
-        return self.mean(self._data)
+        if len(self._data) > 0:
+            return self.mean(self._data)
+        return np.inf

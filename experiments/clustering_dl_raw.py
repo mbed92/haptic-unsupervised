@@ -57,30 +57,35 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # train the clust_model model
-    best_loss = 9999.9
+    best_metric = -9999.0
     best_model = None
     with SummaryWriter(log_dir=log_dir) as writer:
 
         # train epoch
         for epoch in range(args.epochs_dec):
             loss, metrics = dec.ops.train_epoch(clust_model, dataloader, optimizer, device)
+
+            # training collapsed
+            if None in [loss, metrics]:
+                break
+
+            # gather metrics
             writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), epoch)
             for metric in metrics:
                 writer.add_scalar(f"CLUSTERING/train/{metric.name}", metric.get(), epoch)
             writer.add_scalar(f'CLUSTERING/train/lr', optimizer.param_groups[0]['lr'], epoch)
-
             writer.flush()
             scheduler.step()
 
             # save the best model and log metrics
-            current_test_loss = loss.get()
-            if current_test_loss < best_loss:
+            evaluation_metric = list(filter(lambda m: "davies_bouldin_score" in m.name, metrics))[0].get()
+            if evaluation_metric > best_metric:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
                 best_model = copy.deepcopy(clust_model)
-                best_loss = current_test_loss
+                best_metric = evaluation_metric
                 [print(f"{m.name} {m.get()}") for m in metrics]
 
-            print(f"Epoch: {epoch} / {args.epochs_dec}. Best loss: {best_loss}")
+            print(f"Epoch: {epoch} / {args.epochs_dec}. Best metric (davies_bouldin_score): {best_metric}")
 
         scheduler.step()
 

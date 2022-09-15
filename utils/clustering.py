@@ -42,5 +42,5 @@ def create_img(arr1, arr2):
 
 
 def distribution_hardening(q):
-    p = torch.nan_to_num(torch.div(q ** 2, torch.sum(q, 1, keepdim=True)))
+    p = torch.nan_to_num(torch.div(q ** 2, torch.sum(q, 0, keepdim=True)))
     return torch.nan_to_num(torch.div(p, torch.sum(p, 1, keepdim=True)))

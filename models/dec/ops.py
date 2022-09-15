@@ -50,6 +50,6 @@ def train_epoch(model, dataloader, optimizer, device):
                 ii = len(clustering_metrics_x_labels) + i
                 metrics[ii].add(m(y, y_hat))
         else:
-            break
+            return None, None
 
     return clustering_loss, metrics
