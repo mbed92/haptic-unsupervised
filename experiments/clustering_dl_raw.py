@@ -32,9 +32,9 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
 
     # get all the data for further calculations (remember that you always need to iterate over some bigger datasets)
     dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
-    x_train, y_train = helpers.get_total_data_from_dataloader(dataloader)
 
     # setup a model
+    x_train, y_train = helpers.get_total_data_from_dataloader(dataloader)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     shape = total_dataset.signals.shape
     if len(shape) > 2:
@@ -49,7 +49,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
 
     # setup optimizer
     backprop_config = autoencoders.ops.BackpropConfig()
-    backprop_config.optimizer = torch.optim.SGD
+    backprop_config.optimizer = torch.optim.AdamW
     backprop_config.model = clust_model
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
@@ -58,9 +58,10 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # train the clust_model model
-    best_metric = inf
-    best_model = None
     with SummaryWriter(log_dir=log_dir) as writer:
+        best_loss = inf
+        best_epoch = 0
+        best_model = None
 
         # train epoch
         for epoch in range(args.epochs_dec):
@@ -79,14 +80,16 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             scheduler.step()
 
             # save the best model and log metrics
-            evaluation_metric = list(filter(lambda m: "davies_bouldin_score" in m.name, metrics))[0].get()
-            if evaluation_metric < best_metric:
+            # evaluation_metric = list(filter(lambda m: "davies_bouldin_score" in m.name, metrics))[0].get()
+            current_loss = loss.get()
+            if current_loss < best_loss:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
                 best_model = copy.deepcopy(clust_model)
-                best_metric = evaluation_metric
+                best_loss = current_loss
+                best_epoch = epoch
                 [print(f"{m.name} {m.get()}") for m in metrics]
 
-            print(f"Epoch: {epoch} / {args.epochs_dec}. Best metric (davies_bouldin_score): {best_metric}")
+            print(f"Epoch: {epoch} / {args.epochs_dec}. Best loss: {best_loss} for epoch {best_epoch}")
 
         scheduler.step()
 
