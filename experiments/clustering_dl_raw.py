@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+from numpy import inf
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
@@ -48,7 +49,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
 
     # setup optimizer
     backprop_config = autoencoders.ops.BackpropConfig()
-    backprop_config.optimizer = torch.optim.AdamW
+    backprop_config.optimizer = torch.optim.SGD
     backprop_config.model = clust_model
     backprop_config.lr = args.lr
     backprop_config.eta_min = args.eta_min
@@ -57,7 +58,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # train the clust_model model
-    best_metric = -9999.0
+    best_metric = inf
     best_model = None
     with SummaryWriter(log_dir=log_dir) as writer:
 
@@ -79,7 +80,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
 
             # save the best model and log metrics
             evaluation_metric = list(filter(lambda m: "davies_bouldin_score" in m.name, metrics))[0].get()
-            if evaluation_metric > best_metric:
+            if evaluation_metric < best_metric:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
                 best_model = copy.deepcopy(clust_model)
                 best_metric = evaluation_metric

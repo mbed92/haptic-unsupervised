@@ -1,5 +1,7 @@
 from sklearn import cluster, mixture, metrics
 
+from utils.metrics import purity_score
+
 
 def get_sklearn_clustering_metrics_x_labels():
     """ https://towardsdatascience.com/performance-metrics-in-machine-learning-part-3-clustering-d69550662dc6 """
@@ -15,8 +17,8 @@ def get_sklearn_clustering_metrics_true_pred():
     return (
         ("rand_score", metrics.rand_score),
         ("adjusted_rand_score", metrics.adjusted_rand_score),
-        ("mutual_info_score", metrics.mutual_info_score),
-
+        ("mutual_info_score", metrics.normalized_mutual_info_score),
+        ("purity_score", purity_score)
     )
 
 
