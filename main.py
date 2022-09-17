@@ -37,12 +37,9 @@ def main(args):
     elif args.experiment_name == "clustering_dl_latent":
         experiments.clustering_dl_latent(total_dataset, log_dir, args)
 
-    # elif args.experiment_name == "clustering_dl_latent_with_attention":
-    #     experiments.clustering.clustering_dl_latent_with_attention(train_ds, test_ds, log_dir)
-
     else:
         print("Unknown experiment name. Available choices are: "
-              "clustering_ml_raw, clustering_dl_raw, clustering_dl_latent, clustering_dl_latent_with_attention")
+              "clustering_ml_raw, clustering_dl_raw, clustering_dl_latent")
 
 
 if __name__ == '__main__':
@@ -51,7 +48,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
     parser.add_argument('--epochs-ae', type=int, default=1000)
     parser.add_argument('--epochs-dec', type=int, default=1000)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--latent-size', type=int, default=10)

@@ -1,4 +1,4 @@
-""" Fully connected AutEncoder """
+""" Fully connected AutEncoder with the attention variant """
 
 import torch
 import torch.nn as nn
@@ -18,16 +18,16 @@ class FullyConnectedAutoencoder(nn.Module):
         self.encoder_layers = nn.Sequential(
             nn.Linear(cfg.data_shape[0], cfg.latent_size),
             nn.BatchNorm1d(cfg.latent_size),
-            nn.Dropout(cfg.dropout),
             cfg.activation,
+            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.latent_size, cfg.latent_size)
         )
 
         self.decoder_layers = nn.Sequential(
             nn.Linear(cfg.latent_size, cfg.data_shape[0]),
             nn.BatchNorm1d(cfg.data_shape[0]),
-            nn.Dropout(cfg.dropout),
             cfg.activation,
+            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.data_shape[0], cfg.data_shape[0])
         )
 
