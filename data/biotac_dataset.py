@@ -8,6 +8,7 @@ SIGNAL_END = 74
 NUM_CLASSES_TRAIN = 41
 NUM_CLASSES_TEST = 10
 CLASS_NAME_IDX = 0
+CLASS_ID_IDX = 75
 OUTCOME_IDX = 1
 PALM_ORIENTATION_IDX = -1
 
@@ -18,8 +19,8 @@ class BiotacDataset(Dataset):
         with open(path, 'rb') as f:
             pickled = pickle.load(f)
             self.signals = pickled[key][:, SIGNAL_START:SIGNAL_END]
-            self.labels = pickled[key][:, CLASS_NAME_IDX]
-            self.meta = pickled[key][:, [OUTCOME_IDX, PALM_ORIENTATION_IDX]]
+            self.labels = pickled[key][:, CLASS_ID_IDX]
+            self.meta = pickled[key][:, [CLASS_ID_IDX, OUTCOME_IDX, PALM_ORIENTATION_IDX]]
 
         self.num_classes = NUM_CLASSES_TRAIN if key == "train" else NUM_CLASSES_TEST
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
