@@ -11,7 +11,10 @@ DEFAULT_PARAMS = {
     "min_samples": 7,
     "xi": 0.05,
     "min_cluster_size": 0.1,
-    "n_rows": 2
+    "n_rows": 2,
+    "tsne_n_components": 2,
+    "title_size": 18,
+    "figsize": (15, 15)
 }
 
 COLOR_BASE = [
@@ -25,4 +28,3 @@ COLOR_BASE = [
     "#e41a1c",
     "#dede00",
 ]
-

@@ -50,7 +50,7 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
     # setup matplotlib
     n_rows = DEFAULT_PARAMS["n_rows"]
     n_cols = np.ceil(len(clustering_algorithms) / n_rows).astype(np.int)
-    fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=(15, 15))
+    fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
 
     # setup logdir
     log_file = os.path.join(log_dir, "log.txt")
@@ -78,17 +78,18 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
                 colors = np.append(colors, ["#000000"])
 
                 # plot TSNE
-                tsne = TSNE(n_components=2)
+                tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
                 x_tsne = tsne.fit_transform(x)
                 ax = axs.reshape(-1)[plot_num]
-                ax.set_title(algorithm_name, size=18)
-                ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
+                ax.set_title(algorithm_name, size=DEFAULT_PARAMS["title_size"])
+                sns.scatterplot(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5, ax=ax)
 
                 # save embeddings
                 file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")
                 pickle.dump({
-                    "tsne": x_tsne,
-                    "subervised_labels": y_pred
+                    "x_tsne": x_tsne,
+                    "y_supervised": y,
+                    "y_unsupervised": y_pred
                 }, file_handler)
 
                 # print metrics

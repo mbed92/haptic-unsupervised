@@ -18,9 +18,9 @@ class BiotacDataset(Dataset):
     def __init__(self, path, key, standarize=True):
         with open(path, 'rb') as f:
             pickled = pickle.load(f)
-            self.signals = pickled[key][:, SIGNAL_START:SIGNAL_END]
-            self.labels = pickled[key][:, CLASS_ID_IDX]
-            self.meta = pickled[key][:, [CLASS_ID_IDX, OUTCOME_IDX, PALM_ORIENTATION_IDX]]
+            self.signals = pickled[key][:, SIGNAL_START:SIGNAL_END].astype(np.float32)
+            self.labels = pickled[key][:, CLASS_ID_IDX].astype(np.int32)
+            self.meta = pickled[key][:, [CLASS_NAME_IDX, OUTCOME_IDX, PALM_ORIENTATION_IDX]]
 
         self.num_classes = NUM_CLASSES_TRAIN if key == "train" else NUM_CLASSES_TEST
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
@@ -44,4 +44,5 @@ class BiotacDataset(Dataset):
         self.signals = np.concatenate([self.signals, other_biotac.signals], 0)
         self.labels = np.concatenate([self.labels, other_biotac.labels], 0)
         self.weights = np.concatenate([self.weights, other_biotac.weights], 0) / 2.0
+        self.meta = np.concatenate([self.meta, other_biotac.meta], 0)
         return self

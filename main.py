@@ -1,12 +1,14 @@
 import argparse
 import os
 
+import numpy as np
 import torch
 import yaml
 from sklearn.preprocessing import StandardScaler
 
 import experiments
 import submodules.haptic_transformer.utils as utils_haptr
+import utils.sklearn_benchmark
 from data import helpers
 
 torch.manual_seed(42)
@@ -21,7 +23,7 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load the dataset
-    train_ds, val_ds, test_ds = helpers.load_dataset(config)
+    train_ds, _, test_ds = helpers.load_dataset(config)
     total_dataset = train_ds + test_ds
 
     if len(total_dataset.signals[0].shape) == 1:
@@ -37,15 +39,28 @@ def main(args):
     elif args.experiment_name == "clustering_dl_latent":
         experiments.clustering_dl_latent(total_dataset, log_dir, args)
 
+    # assumes that results are under ./args.results_folder/{method_name}.pickle in the following dict format:
+    # {
+    #   "x_tsne": [N x 2]
+    #   "y_supervised": [N]
+    #   "y_unsupervised": [N]
+    # }
+    elif args.experiment_name == "analyze_clustering_results":
+        experiments.analyze_clustering_results(total_dataset, args.results_folder)
+
     else:
         print("Unknown experiment name. Available choices are: "
-              "clustering_ml_raw, clustering_dl_raw, clustering_dl_latent")
+              "clustering_ml_raw, clustering_dl_raw, clustering_dl_latent, analyze_clustering_results")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+
+    # common
     parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
-    parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
+    parser.add_argument('--experiment-name', type=str, default="analyze_clustering_results")
+
+    # deep learning
     parser.add_argument('--epochs-ae', type=int, default=1000)
     parser.add_argument('--epochs-dec', type=int, default=1000)
     parser.add_argument('--batch-size', type=int, default=64)
@@ -56,5 +71,9 @@ if __name__ == '__main__':
     parser.add_argument('--weight-decay', type=float, default=1e-4)
     parser.add_argument('--eta-min', type=float, default=1e-4)
     parser.add_argument('--load-path', type=str, default="")
+
+    # analysis
+    parser.add_argument('--results-folder', type=str, default="./experiments/results")
+
     args, _ = parser.parse_known_args()
     main(args)

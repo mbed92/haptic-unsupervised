@@ -98,7 +98,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
         with torch.no_grad():
             best_model.cpu()
 
-            fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=(15, 15))
+            fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
             log_picture = os.path.join(log_dir, "tsne.png")
 
             x, y = total_dataset.signals, total_dataset.labels
@@ -115,7 +115,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             colors = np.append(colors, ["#000000"])
 
             # plot TSNE
-            tsne = TSNE(n_components=2)
+            tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
             num_points = len(total_dataset.signals)
             embeddings = np.concatenate([total_dataset.signals, centroids])
             x_tsne = tsne.fit_transform(embeddings)
@@ -125,10 +125,11 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             ax.scatter(x_tsne[num_points:, 0], x_tsne[num_points:, 1], c='black', s=200)
 
             # save embeddings
-            file_handler = open(os.path.join(log_dir, "dec.pickle"), "wb")
+            file_handler = open(os.path.join(log_dir, "DEC.pickle"), "wb")
             pickle.dump({
-                "tsne": x_tsne,
-                "predicted_labels": y_pred
+                "x_tsne": x_tsne,
+                "y_supervised": y,
+                "y_unsupervised": y_pred
             }, file_handler)
 
         # save tsne
