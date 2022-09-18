@@ -83,23 +83,28 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
                 ax.set_title(algorithm_name, size=DEFAULT_PARAMS["title_size"])
                 ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
 
+                # print metrics
+                print(f"{algorithm_name} finished in {t1 - t0}.")
+                metrics = list()
+                for sklearn_metric_name, sklearn_metric in clustering_metrics_x_labels:
+                    value = sklearn_metric(x, y_pred)
+                    metrics.append((sklearn_metric_name, value))
+                    print(f"{sklearn_metric_name} achieved {value}.")
+                for sklearn_metric_name, sklearn_metric in clustering_metrics_true_pred:
+                    value = sklearn_metric(y, y_pred)
+                    metrics.append((sklearn_metric_name, value))
+                    print(f"{sklearn_metric_name} achieved {value}.")
+                print("===========================\n\n")
+
                 # save embeddings
                 file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")
                 pickle.dump({
                     "x_tsne": x_tsne,
                     "y_supervised": y,
-                    "y_unsupervised": y_pred
+                    "y_unsupervised": y_pred,
+                    "metrics": metrics
                 }, file_handler)
-
-                # print metrics
-                print(f"{algorithm_name} finished in {t1 - t0}.")
-                for sklearn_metric_name, sklearn_metric in clustering_metrics_x_labels:
-                    print(f"{sklearn_metric_name} achieved {sklearn_metric(x, y_pred)}.")
-                for sklearn_metric_name, sklearn_metric in clustering_metrics_true_pred:
-                    print(f"{sklearn_metric_name} achieved {sklearn_metric(y, y_pred)}.")
-                print("===========================\n\n")
 
             # save tsne
             plt.savefig(log_picture, dpi=fig.dpi)
-            plt.show()
             plt.close(fig)

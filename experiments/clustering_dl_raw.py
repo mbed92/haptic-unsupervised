@@ -61,6 +61,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
         best_loss = inf
         best_epoch = 0
         best_model = None
+        best_metrics = None
 
         # train epoch
         for epoch in range(args.epochs_dec):
@@ -85,6 +86,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
                 best_model = copy.deepcopy(clust_model)
                 best_loss = current_loss
                 best_epoch = epoch
+                best_metrics = [(m.name, m.get()) for m in metrics]
                 [print(f"{m.name} {m.get()}") for m in metrics]
 
             print(f"Epoch: {epoch} / {args.epochs_dec}. Best loss: {best_loss} for epoch {best_epoch}")
@@ -127,10 +129,10 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
                 "x_tsne": x_tsne[:num_points],
                 "centroids_tsne": x_tsne[num_points:],
                 "y_supervised": y,
-                "y_unsupervised": y_pred
+                "y_unsupervised": y_pred,
+                "metrics": best_metrics
             }, file_handler)
 
         # save tsne
         plt.savefig(log_picture, dpi=fig.dpi)
-        plt.show()
         plt.close(fig)

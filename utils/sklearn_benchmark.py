@@ -6,20 +6,17 @@ from utils.metrics import purity_score, clustering_accuracy
 def get_sklearn_clustering_metrics_x_labels():
     """ https://towardsdatascience.com/performance-metrics-in-machine-learning-part-3-clustering-d69550662dc6 """
     return (
-        ("silhouette_score", metrics.silhouette_score),
-        ("calinski_harabasz_score", metrics.calinski_harabasz_score),
-        ("davies_bouldin_score", metrics.davies_bouldin_score)
+        ("Silhouette", metrics.silhouette_score),
     )
 
 
 def get_sklearn_clustering_metrics_true_pred():
     """ https://towardsdatascience.com/performance-metrics-in-machine-learning-part-3-clustering-d69550662dc6 """
     return (
-        ("rand_score", metrics.rand_score),
-        ("adjusted_rand_score", metrics.adjusted_rand_score),
-        ("mutual_info_score", metrics.normalized_mutual_info_score),
-        ("purity_score", purity_score),
-        ("clustering_accuracy", clustering_accuracy)
+        ("AdjustedRand", metrics.adjusted_rand_score),
+        ("MutualInfo", metrics.normalized_mutual_info_score),
+        ("Purity", purity_score),
+        ("ClusteringAccuracy", clustering_accuracy)
     )
 
 
@@ -45,10 +42,10 @@ def get_sklearn_clustering_algorithms(params, connectivity):
     )
 
     return (
-        ("MiniBatch\nKMeans", two_means),
-        ("Spectral\nClustering", spectral),
+        ("KMeans", two_means),
+        ("SpectralClustering", spectral),
         ("Ward", ward),
-        ("Agglomerative\nClustering", average_linkage),
+        ("AgglomerativeClustering", average_linkage),
         ("BIRCH", birch),
-        ("Gaussian\nMixture", gmm),
+        ("GaussianMixture", gmm),
     )

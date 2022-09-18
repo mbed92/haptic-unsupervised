@@ -45,7 +45,8 @@ def main(args):
     #   "x_tsne": [N x 2]
     #   "centroids_tnse": [num_centroids x 2]   (optional for learning-based methods)
     #   "y_supervised": [N]
-    #   "y_unsupervised": [N]
+    #   "y_unsupervised": [N],
+    #   "metrics": [K]
     # }
     elif args.experiment_name == "analyze_clustering_results":
         experiments.analyze_clustering_results(total_dataset, args.results_folder)
@@ -60,7 +61,7 @@ if __name__ == '__main__':
 
     # common
     parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
-    parser.add_argument('--experiment-name', type=str, default="analyze_clustering_results")
+    parser.add_argument('--experiment-name', type=str, default="clustering_ml_raw")
 
     # deep learning
     parser.add_argument('--epochs-ae', type=int, default=200)
