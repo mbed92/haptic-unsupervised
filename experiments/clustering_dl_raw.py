@@ -69,7 +69,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
 
             # training collapsed
             if None in [loss, metrics]:
-                break
+                continue
 
             # gather metrics
             writer.add_scalar(f"CLUSTERING/train/{loss.name}", loss.get(), epoch)

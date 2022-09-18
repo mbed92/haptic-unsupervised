@@ -1,14 +1,12 @@
+import copy
 import os
-from copy import copy
 
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
 from .biotac_dataset import BiotacDataset
+from .put_dataset import HapticDataset
 from .touching_dataset import TouchingDataset
-from submodules.haptic_transformer.data import HapticDataset, QCATDataset
-from submodules.haptic_transformer.utils.dataset import load_dataset as load_dataset_haptr
 
 
 def get_total_data_from_dataloader(dataloader: DataLoader):
@@ -21,44 +19,35 @@ def get_total_data_from_dataloader(dataloader: DataLoader):
     return torch.stack(x_list, 0).float().detach(), torch.FloatTensor(y_list).detach()
 
 
-def pick_haptic_dataset(ds: HapticDataset, classes: list):
-    labels = [sig['label'] for sig in ds.signals]
-    chosen_idx = np.argwhere([bool(l in classes) for idx, l in enumerate(labels)]).flatten()
-    new_signals = [ds.signals[i] for i in chosen_idx]
-    new_ds = copy(ds)
-    new_ds.signals = new_signals
-    return new_ds
-
-
-def pick_qcat_dataset(ds: QCATDataset, classes: list):
-    raise NotImplementedError("Cannot filter the dataset.")
-
-
 def load_samples_to_device(data, device):
     s = data[0].to(device).float()
     labels = data[-1].to(device)
     return s, labels
 
 
+def prepare(old_ds: HapticDataset):
+    new_ds = copy.deepcopy(old_ds)
+    new_ds.signals = [d["signal"] for d in old_ds.signals]
+    new_ds.labels = [d["label"] for d in old_ds.signals]
+    return new_ds
+
+
 def load_dataset(config):
     ds_type = config["dataset_type"].lower()
 
-    if ds_type in ["put", "qcat"]:
-        train_ds, val_ds, test_ds = load_dataset_haptr(config)
-        train_ds += val_ds
-
-        if 'test_classes' in config.keys() or 'train_val_classes' in config.keys():
-            ds = train_ds + val_ds + test_ds
-            val_ds = None
-
-            if ds_type == "put":
-                train_ds = pick_haptic_dataset(ds, config['train_val_classes'])
-                test_ds = pick_haptic_dataset(ds, config['test_classes'])
-            elif ds_type == "qcat":
-                train_ds = pick_qcat_dataset(ds, config['train_val_classes'])
-                test_ds = pick_qcat_dataset(ds, config['test_classes'])
-            else:
-                raise NotImplementedError("Cannot filter the dataset.")
+    if ds_type in ["put"]:
+        dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
+        train_ds = HapticDataset(dataset_path,
+                                 key="train_ds",
+                                 signal_start=config['signal_start'],
+                                 signal_length=config['signal_length'])
+        val_ds = HapticDataset(dataset_path, key="val_ds",
+                               signal_start=config['signal_start'],
+                               signal_length=config['signal_length'])
+        test_ds = HapticDataset(dataset_path, key="test_ds",
+                                signal_start=config['signal_start'],
+                                signal_length=config['signal_length'])
+        total_dataset = train_ds + val_ds + test_ds
 
     elif ds_type == "touching":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
@@ -67,28 +56,23 @@ def load_dataset(config):
                                    directions=config['train_val_directions'],
                                    classes=picked_classes,
                                    signal_start=config['signal_start'],
-                                   signal_length=config['signal_length'],
-                                   standarize=True)
+                                   signal_length=config['signal_length'])
 
-        val_ds = None
         picked_classes = config['test_classes'] if 'test_classes' in config.keys() else []
         test_ds = TouchingDataset(dataset_path,
                                   directions=config['test_directions'],
                                   classes=picked_classes,
                                   signal_start=config['signal_start'],
-                                  signal_length=config['signal_length'],
-                                  standarize=False)
-        test_ds.signals = (test_ds.signals - train_ds.mean) / train_ds.std
+                                  signal_length=config['signal_length'])
+        total_dataset = train_ds + test_ds
 
     elif ds_type == "biotac2":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
         train_ds = BiotacDataset(dataset_path, "train")
-
-        val_ds = None
         test_ds = BiotacDataset(dataset_path, "test")
         test_ds.signals = (test_ds.signals - train_ds.mean) / train_ds.std
-
+        total_dataset = train_ds + test_ds
     else:
         raise NotImplementedError("Dataset not recognized. Allowed options are: QCAT, PUT, TOUCHING")
 
-    return train_ds, val_ds, test_ds
+    return total_dataset

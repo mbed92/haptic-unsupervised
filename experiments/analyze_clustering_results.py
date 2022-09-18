@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 from torch.utils.data import Dataset
 
 from experiments.benchmark import DEFAULT_PARAMS
@@ -144,6 +145,14 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         series_widths = [bmw[i] for bmw in bar_multi_widths]
         series_positions = [bmp[i] for bmp in bar_multi_positions]
         ax.bar(series_positions, series_heights, series_widths, label=name)
+
+    # Set axis ranges; by default this will put major ticks every 25.
+    ax.set_xlim(-0.5, 6.5)
+    ax.set_ylim(0.0, 1.0)
+    ax.xaxis.set_major_locator(MultipleLocator(0.1))
+    ax.yaxis.set_major_locator(MultipleLocator(0.1))
+    ax.grid(which='major', color='#CCCCCC', linestyle='--')
+    ax.grid(which='minor', color='#CCCCCC', linestyle=':')
 
     ax.set_ylabel('Score', fontsize=DEFAULT_PARAMS["title_size"])
     ax.set_title('Metrics achieved by clustering methods', size=DEFAULT_PARAMS["title_size"])

@@ -1,14 +1,12 @@
 import argparse
 import os
 
-import numpy as np
 import torch
 import yaml
 from sklearn.preprocessing import StandardScaler
 
 import experiments
 import submodules.haptic_transformer.utils as utils_haptr
-import utils.sklearn_benchmark
 from data import helpers
 
 torch.manual_seed(42)
@@ -23,22 +21,19 @@ def main(args):
         config = yaml.load(file, Loader=yaml.FullLoader)
 
     # load the dataset
-    train_ds, _, test_ds = helpers.load_dataset(config)
-    total_dataset = train_ds + test_ds
-    expected_num_clusters = total_dataset.num_classes
-
+    total_dataset = helpers.load_dataset(config)
     if len(total_dataset.signals[0].shape) == 1:
         total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # run a specified experiment
     if args.experiment_name == "clustering_ml_raw":
-        experiments.clustering_ml_raw(total_dataset, log_dir, expected_num_clusters)
+        experiments.clustering_ml_raw(total_dataset, log_dir, total_dataset.num_classes)
 
     elif args.experiment_name == "clustering_dl_raw":
-        experiments.clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters)
+        experiments.clustering_dl_raw(total_dataset, log_dir, args, total_dataset.num_classes)
 
     elif args.experiment_name == "clustering_dl_latent":
-        experiments.clustering_dl_latent(total_dataset, log_dir, args, expected_num_clusters)
+        experiments.clustering_dl_latent(total_dataset, log_dir, args, total_dataset.num_classes)
 
     # assumes that results are under ./args.results_folder/{method_name}.pickle in the following dict format:
     # {
@@ -60,8 +55,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # common
-    parser.add_argument('--dataset-config-file', type=str, default="./config/biotac2.yaml")
-    parser.add_argument('--experiment-name', type=str, default="clustering_ml_raw")
+    parser.add_argument('--dataset-config-file', type=str, default="./config/touching.yaml")
+    parser.add_argument('--experiment-name', type=str, default="clustering_dl_latent")
 
     # deep learning
     parser.add_argument('--epochs-ae', type=int, default=200)
@@ -76,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--load-path', type=str, default="")
 
     # analysis
-    parser.add_argument('--results-folder', type=str, default="./experiments/results")
+    parser.add_argument('--results-folder', type=str, default="./experiments/results/put")
 
     args, _ = parser.parse_known_args()
     main(args)

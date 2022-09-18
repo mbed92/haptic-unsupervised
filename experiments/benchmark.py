@@ -6,7 +6,6 @@ DEFAULT_PARAMS = {
     "damping": 0.9,
     "preference": -200,
     "n_neighbors": 3,
-    "n_clusters": 4,  # looking for: macro, fine roughness, hardness/softness, and friction
     "n_latent_size": 10,
     "min_samples": 7,
     "xi": 0.05,

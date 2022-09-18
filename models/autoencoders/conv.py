@@ -38,7 +38,7 @@ class TimeSeriesConvAutoencoder(nn.Module):
 
         padding = ceil(cfg.kernel / 2) - 1
         self.encoder_layers = nn.Sequential(
-            nn.Conv1d(cfg.data_shape[-1], 16, 1, 1),
+            nn.Conv1d(cfg.data_shape[0], 16, 1, 1),
             encoder_block(16, 32, cfg.kernel, 2, padding, cfg.activation, cfg.dropout),
             encoder_block(32, 64, cfg.kernel, 2, padding, cfg.activation, cfg.dropout),
             encoder_block(64, 128, cfg.kernel, 2, padding, cfg.activation, cfg.dropout),
@@ -53,7 +53,7 @@ class TimeSeriesConvAutoencoder(nn.Module):
             nn.Upsample(scale_factor=2.0, mode='nearest'),
             decoder_block(32, 16, cfg.kernel, 1, padding, cfg.activation, cfg.dropout),
             nn.Upsample(scale_factor=2.0, mode='nearest'),
-            nn.Conv1d(16, cfg.data_shape[-1], 1, 1)
+            nn.Conv1d(16, cfg.data_shape[0], 1, 1)
         )
 
     def encoder(self, inputs):

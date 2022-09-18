@@ -118,11 +118,7 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, 
     # prepare a new dataset with latent representations
     with torch.no_grad():
         autoencoder = autoencoder.cpu()
-
-        if create_fc_autoencoder:
-            x_train = torch.Tensor(total_dataset.signals).cpu()
-        else:
-            x_train = torch.Tensor(np.transpose(total_dataset.signals, [0, 2, 1])).cpu()
+        x_train = torch.Tensor(total_dataset.signals).cpu()
         total_dataset.signals = autoencoder.encoder(x_train).numpy()
 
     clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters)
