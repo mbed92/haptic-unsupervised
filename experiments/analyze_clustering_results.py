@@ -33,15 +33,18 @@ def open_pickle(path):
 
 
 def plot_supervised_classes_in_unsupervised_clusters(title: str, data: dict, ax: plt.Axes):
+    # assign separate color to each supervised class
     n_supervised_classes = int(max(data["y_supervised"]) + 1)
     colors = plt.cm.rainbow(np.linspace(0, 1, n_supervised_classes))
 
+    # plot TSNE results with supervised color-labels
     ax.set_title(title, size=DEFAULT_PARAMS["title_size"])
     ax.scatter(data["x_tsne"][:, 0], data["x_tsne"][:, 1],
                c=colors[data["y_supervised"]],
                edgecolor='none',
                alpha=0.5)
 
+    # append centroids if possible
     if "centroids_tsne" in data.keys():
         ax.scatter(data["centroids_tsne"][:, 0], data["centroids_tsne"][:, 1],
                    c='black',
@@ -50,21 +53,25 @@ def plot_supervised_classes_in_unsupervised_clusters(title: str, data: dict, ax:
 
 
 def print_supervised_classes_in_unsupervised_clusters(index_to_class: np.ndarray, results: dict):
-    cluster_ids = np.unique(results["y_unsupervised"])
+    total_cluster_ids = np.unique(results["y_unsupervised"])
+    _, cls_counts = np.unique(results["y_supervised"], return_counts=True)
 
-    for cluster_id in cluster_ids:
-        cluster_indices = np.argwhere(results["y_unsupervised"] == cluster_id)
+    # iterate over existing clusters
+    for cluster_id in total_cluster_ids:
+        cluster_ids = np.argwhere(results["y_unsupervised"] == cluster_id)
+        supervised_classes = results["y_supervised"][cluster_ids]
+        supervised_classes, supervised_classes_counts = np.unique(supervised_classes, return_counts=True)
+        supervised_classes_total_counts = cls_counts[supervised_classes]
 
-        if index_to_class is None:
-            supervised_classes_in_cluster = results["y_supervised"][cluster_indices]
-        else:
-            supervised_classes_in_cluster = index_to_class[cluster_indices]
+        # turn indices into class names if possible
+        if index_to_class is not None:
+            supervised_classes = index_to_class[cluster_ids]
+            supervised_classes = np.unique(supervised_classes)
 
-        supervised_classes, supervised_classes_counts = np.unique(supervised_classes_in_cluster, return_counts=True)
-
+        # print clustering info to the log file
         print(f"Cluster {cluster_id}:")
-        for sc, scc in zip(supervised_classes, supervised_classes_counts):
-            print(f"{sc} - {scc}")
+        for sc, scc, tot in zip(supervised_classes, supervised_classes_counts, supervised_classes_total_counts):
+            print(f"{sc} - {scc} / {tot}")
         print("\n")
 
 
