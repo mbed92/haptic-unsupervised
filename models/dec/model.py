@@ -29,7 +29,7 @@ class ClusteringModel(nn.Module):
 
     @staticmethod
     def set_kmeans_centroids(embeddings, num_centroids):
-        method = KMeans(n_clusters=num_centroids)
+        method = KMeans(n_clusters=num_centroids, n_init=1)
         method.fit_predict(embeddings)
         initial_centroids = method.cluster_centers_
         return nn.Parameter(torch.Tensor(initial_centroids))

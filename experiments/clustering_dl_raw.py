@@ -3,7 +3,6 @@ import os
 import os.path
 import pickle
 from argparse import Namespace
-from itertools import islice, cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,12 +17,12 @@ from torchsummary import summary
 
 from data import helpers
 from models import dec, autoencoders
-from .benchmark import DEFAULT_PARAMS, RANDOM_SEED, COLOR_BASE
+from .benchmark import DEFAULT_PARAMS, RANDOM_SEED
 
 sns.set()
 
 
-def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
+def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int):
     torch.manual_seed(RANDOM_SEED)
 
     # clustering model requires flattened data
@@ -42,8 +41,8 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
     else:
         data_shape = shape[-1]
 
-    clust_model = dec.ClusteringModel(DEFAULT_PARAMS["n_clusters"], data_shape)
-    clust_model.centroids = clust_model.set_kmeans_centroids(x_train, DEFAULT_PARAMS["n_clusters"])
+    clust_model = dec.ClusteringModel(expected_num_clusters, data_shape)
+    clust_model.centroids = clust_model.set_kmeans_centroids(x_train, expected_num_clusters)
     clust_model.to(device)
     summary(clust_model, input_size=data_shape)
 
@@ -80,7 +79,6 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             scheduler.step()
 
             # save the best model and log metrics
-            # evaluation_metric = list(filter(lambda m: "davies_bouldin_score" in m.name, metrics))[0].get()
             current_loss = loss.get()
             if current_loss < best_loss:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
@@ -111,8 +109,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             centroids = best_model.centroids.numpy()
 
             # setup colors
-            colors = np.array(list(islice(cycle(COLOR_BASE), DEFAULT_PARAMS["n_clusters"], )))
-            colors = np.append(colors, ["#000000"])
+            colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
 
             # plot TSNE
             tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
@@ -127,7 +124,8 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace):
             # save embeddings
             file_handler = open(os.path.join(log_dir, "DEC.pickle"), "wb")
             pickle.dump({
-                "x_tsne": x_tsne,
+                "x_tsne": x_tsne[:num_points],
+                "centroids_tsne": x_tsne[num_points:],
                 "y_supervised": y,
                 "y_unsupervised": y_pred
             }, file_handler)

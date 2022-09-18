@@ -37,11 +37,16 @@ def plot_supervised_classes_in_unsupervised_clusters(title: str, data: dict, ax:
     colors = plt.cm.rainbow(np.linspace(0, 1, n_supervised_classes))
 
     ax.set_title(title, size=DEFAULT_PARAMS["title_size"])
-    sns.scatterplot(data["x_tsne"][:, 0], data["x_tsne"][:, 1],
-                    c=colors[data["y_supervised"]],
-                    edgecolor='none',
-                    alpha=0.5,
-                    ax=ax)
+    ax.scatter(data["x_tsne"][:, 0], data["x_tsne"][:, 1],
+               c=colors[data["y_supervised"]],
+               edgecolor='none',
+               alpha=0.5)
+
+    if "centroids_tsne" in data.keys():
+        ax.scatter(data["centroids_tsne"][:, 0], data["centroids_tsne"][:, 1],
+                   c='black',
+                   edgecolor='none',
+                   alpha=0.5)
 
 
 def print_supervised_classes_in_unsupervised_clusters(index_to_class: np.ndarray, results: dict):

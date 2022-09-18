@@ -25,23 +25,25 @@ def main(args):
     # load the dataset
     train_ds, _, test_ds = helpers.load_dataset(config)
     total_dataset = train_ds + test_ds
+    expected_num_clusters = total_dataset.num_classes
 
     if len(total_dataset.signals[0].shape) == 1:
         total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # run a specified experiment
     if args.experiment_name == "clustering_ml_raw":
-        experiments.clustering_ml_raw(total_dataset, log_dir)
+        experiments.clustering_ml_raw(total_dataset, log_dir, expected_num_clusters)
 
     elif args.experiment_name == "clustering_dl_raw":
-        experiments.clustering_dl_raw(total_dataset, log_dir, args)
+        experiments.clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters)
 
     elif args.experiment_name == "clustering_dl_latent":
-        experiments.clustering_dl_latent(total_dataset, log_dir, args)
+        experiments.clustering_dl_latent(total_dataset, log_dir, args, expected_num_clusters)
 
     # assumes that results are under ./args.results_folder/{method_name}.pickle in the following dict format:
     # {
     #   "x_tsne": [N x 2]
+    #   "centroids_tnse": [num_centroids x 2]   (optional for learning-based methods)
     #   "y_supervised": [N]
     #   "y_unsupervised": [N]
     # }
@@ -61,10 +63,10 @@ if __name__ == '__main__':
     parser.add_argument('--experiment-name', type=str, default="analyze_clustering_results")
 
     # deep learning
-    parser.add_argument('--epochs-ae', type=int, default=1000)
-    parser.add_argument('--epochs-dec', type=int, default=1000)
-    parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--dropout', type=float, default=0.5)
+    parser.add_argument('--epochs-ae', type=int, default=200)
+    parser.add_argument('--epochs-dec', type=int, default=200)
+    parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--latent-size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)

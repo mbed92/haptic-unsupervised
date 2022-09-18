@@ -2,7 +2,6 @@ import os.path
 import pickle
 import time
 from contextlib import redirect_stdout
-from itertools import islice, cycle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset
 
 import utils.sklearn_benchmark
-from .benchmark import RANDOM_SEED, DEFAULT_PARAMS, COLOR_BASE
+from .benchmark import RANDOM_SEED, DEFAULT_PARAMS
 
 sns.set()
 
@@ -33,7 +32,7 @@ def setup_params(x, params):
     return x, connectivity
 
 
-def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
+def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_clusters: int):
     np.random.seed(RANDOM_SEED)
     x, y = total_dataset.signals, total_dataset.labels
 
@@ -42,6 +41,7 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
         x = np.reshape(x, newshape=(x.shape[0], -1))
 
     # setup clustering algorithms
+    DEFAULT_PARAMS["n_clusters"] = expected_num_clusters
     x, connectivity = setup_params(x, DEFAULT_PARAMS)
     clustering_algorithms = utils.sklearn_benchmark.get_sklearn_clustering_algorithms(DEFAULT_PARAMS, connectivity)
     clustering_metrics_x_labels = utils.sklearn_benchmark.get_sklearn_clustering_metrics_x_labels()
@@ -74,15 +74,14 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str):
                     y_pred = algorithm.predict(x)
 
                 # setup colors
-                colors = np.array(list(islice(cycle(COLOR_BASE), int(max(y_pred) + 1), )))
-                colors = np.append(colors, ["#000000"])
+                colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
 
                 # plot TSNE
                 tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
                 x_tsne = tsne.fit_transform(x)
                 ax = axs.reshape(-1)[plot_num]
                 ax.set_title(algorithm_name, size=DEFAULT_PARAMS["title_size"])
-                sns.scatterplot(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5, ax=ax)
+                ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
 
                 # save embeddings
                 file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")

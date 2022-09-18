@@ -13,7 +13,7 @@ import utils
 from models import autoencoders
 from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
 from models.autoencoders.fc import FullyConnectedAutoencoder, FullyConnectedAutoencoderConfig
-from . import clustering_dl_raw
+from .clustering_dl_raw import clustering_dl_raw
 from .benchmark import RANDOM_SEED
 
 sns.set()
@@ -95,7 +95,7 @@ def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config,
     return best_model
 
 
-def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace):
+def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int):
     torch.manual_seed(RANDOM_SEED)
 
     # prepare the autoencoder (should work on data with shapes NxC or NxCxL)
@@ -125,4 +125,4 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace):
             x_train = torch.Tensor(np.transpose(total_dataset.signals, [0, 2, 1])).cpu()
         total_dataset.signals = autoencoder.encoder(x_train).numpy()
 
-    clustering_dl_raw(total_dataset, log_dir, args)
+    clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters)

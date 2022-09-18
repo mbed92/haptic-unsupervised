@@ -43,7 +43,10 @@ def train_epoch(model, dataloader, optimizer, device):
             y_hat = y_hat.detach().cpu().numpy()
             for i in range(len(clustering_metrics_x_labels)):
                 m = clustering_metrics_x_labels[i][1]
-                metrics[i].add(m(x, y_hat))
+
+                # some metrics require 2 < num_of_pred_clusters < n_samples
+                if 2 < num_of_pred_clusters < x.shape[0]:
+                    metrics[i].add(m(x, y_hat))
 
             for i in range(len(clustering_metrics_true_pred)):
                 m = clustering_metrics_true_pred[i][1]

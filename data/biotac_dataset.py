@@ -45,4 +45,5 @@ class BiotacDataset(Dataset):
         self.labels = np.concatenate([self.labels, other_biotac.labels], 0)
         self.weights = np.concatenate([self.weights, other_biotac.weights], 0) / 2.0
         self.meta = np.concatenate([self.meta, other_biotac.meta], 0)
+        self.num_classes = self.num_classes + other_biotac.num_classes
         return self
