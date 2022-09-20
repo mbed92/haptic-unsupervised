@@ -45,24 +45,33 @@ def plot_tnse(title: str, x_tsne: np.ndarray, y_tsne: np.ndarray, predictions: n
 
 def log_info(index_to_class: np.ndarray, results: dict):
     total_cluster_ids = np.unique(results["y_unsupervised"])
-    _, cls_counts = np.unique(results["y_supervised"], return_counts=True)
+    tot_cls_ids, tot_cls_idx, tot_cls_counts = np.unique(results["y_supervised"], return_counts=True, return_index=True)
+    tot_cls_names = None
+    if index_to_class is not None:
+        tot_cls_names = index_to_class[tot_cls_idx]
 
     # iterate over existing clusters
     for cluster_id in total_cluster_ids:
-        cluster_ids = np.argwhere(results["y_unsupervised"] == cluster_id)
-        supervised_classes = results["y_supervised"][cluster_ids]
-        supervised_classes, supervised_classes_counts = np.unique(supervised_classes, return_counts=True)
-        supervised_classes_total_counts = cls_counts[supervised_classes]
+        cluster_ids = np.argwhere(results["y_unsupervised"] == cluster_id)[:, 0]
+        in_cls = results["y_supervised"][cluster_ids]
+        in_cluster_cls = np.unique(in_cls)
 
-        # turn indices into class names if possible
-        if index_to_class is not None:
-            supervised_classes = index_to_class[cluster_ids]
-            supervised_classes = np.unique(supervised_classes)
+        # fill with zeros for no classes inside
+        classes_counts = list()
+        i = 0
+        for cls_id in tot_cls_ids:
+            if cls_id in in_cluster_cls:
+                num = len(np.where(in_cls == cls_id)[0])
+                classes_counts.append(num)
+            else:
+                classes_counts.append(0)
+            i += 1
 
         # print clustering info to the log file
-        print(f"Cluster {cluster_id}:")
-        for sc, scc, tot in zip(supervised_classes, supervised_classes_counts, supervised_classes_total_counts):
-            print(f"{sc} - {scc} / {tot}")
+        print(f"Cluster {cluster_id}")
+        for sc, scc, tot in zip(tot_cls_names, classes_counts, tot_cls_counts):
+            if scc > 0:
+                print(f"{sc} - {((100 * scc) / tot):02f}%")
         print("\n")
 
 
