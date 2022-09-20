@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import torch
+import torch.nn as nn
 from numpy import inf
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
@@ -22,7 +23,18 @@ from .benchmark import DEFAULT_PARAMS, RANDOM_SEED
 sns.set()
 
 
-def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int):
+def _get_embeddings_dataloader(autoencoder, dataloader, device):
+    tmp = copy.deepcopy(dataloader)
+    with torch.no_grad():
+        autoencoder = autoencoder.cpu()
+        x_train = torch.Tensor(dataloader.dataset.signals).cpu()
+        tmp.dataset.signals = autoencoder.encoder(x_train).numpy()
+    autoencoder.to(device)
+    return tmp
+
+
+def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int,
+                      autoencoder: nn.Module = None):
     torch.manual_seed(RANDOM_SEED)
 
     # clustering model requires flattened data
@@ -30,11 +42,16 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
         total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
 
     # get all the data for further calculations (remember that you always need to iterate over some bigger datasets)
-    dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    original_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
+    clustering_dataloader = copy.deepcopy(original_dataloader)
+    if autoencoder is not None:
+        clustering_dataloader = _get_embeddings_dataloader(autoencoder, clustering_dataloader, device)
 
     # setup a model
-    x_train, y_train = helpers.get_total_data_from_dataloader(dataloader)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    x_train, y_train = helpers.get_total_data_from_dataloader(clustering_dataloader)
+
+    # verify the embeddings shape
     shape = total_dataset.signals.shape
     if len(shape) > 2:
         data_shape = shape[-2] * shape[-1]
@@ -56,6 +73,17 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
     backprop_config.weight_decay = args.weight_decay
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
+    ae_scheduler, ae_optimizer = None, None
+    if autoencoder is not None:
+        backprop_config = autoencoders.ops.BackpropConfig()
+        backprop_config.model = autoencoder
+        backprop_config.optimizer = torch.optim.AdamW
+        backprop_config.lr = args.lr
+        backprop_config.eta_min = args.eta_min
+        backprop_config.epochs = args.epochs_ae
+        backprop_config.weight_decay = args.weight_decay
+        ae_optimizer, ae_scheduler = autoencoders.ops.backprop_init(backprop_config)
+
     # train the clust_model model
     with SummaryWriter(log_dir=log_dir) as writer:
         best_loss = inf
@@ -65,7 +93,16 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
 
         # train epoch
         for epoch in range(args.epochs_dec):
-            loss, metrics = dec.ops.train_epoch(clust_model, dataloader, optimizer, device)
+
+            # reconstruction assignment
+            if None not in [autoencoder, ae_scheduler, ae_optimizer]:
+                ae_loss, _ = autoencoders.ops.train_epoch(autoencoder, original_dataloader, ae_optimizer, device)
+                writer.add_scalar(f"RECONSTRUCTION/train/{ae_loss.name}", ae_loss.get(), epoch)
+                ae_scheduler.step()
+                clustering_dataloader = _get_embeddings_dataloader(autoencoder, original_dataloader, device)
+
+            # clustering assignment
+            loss, metrics = dec.ops.train_epoch(clust_model, clustering_dataloader, optimizer, device)
 
             # training collapsed
             if None in [loss, metrics]:
@@ -101,7 +138,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
             fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
             log_picture = os.path.join(log_dir, "tsne.png")
 
-            x, y = total_dataset.signals, total_dataset.labels
+            x, y = clustering_dataloader.dataset.signals, clustering_dataloader.dataset.labels
             x = np.reshape(x, newshape=(x.shape[0], -1))
 
             outputs = best_model(torch.Tensor(x))
@@ -115,8 +152,8 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
 
             # plot TSNE
             tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
-            num_points = len(total_dataset.signals)
-            embeddings = np.concatenate([total_dataset.signals, centroids])
+            num_points = len(clustering_dataloader.dataset.signals)
+            embeddings = np.concatenate([clustering_dataloader.dataset.signals, centroids])
             x_tsne = tsne.fit_transform(embeddings)
 
             ax.set_title('DEC', size=18)

@@ -34,6 +34,7 @@ class TimeSeriesConvAutoencoder(nn.Module):
 
     def __init__(self, cfg: TimeSeriesConvAutoencoderConfig):
         super().__init__()
+        self.cfg = cfg
         assert len(cfg.data_shape) == 2
 
         padding = ceil(cfg.kernel / 2) - 1

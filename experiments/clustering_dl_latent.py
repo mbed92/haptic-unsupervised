@@ -2,7 +2,6 @@ import copy
 import os
 from argparse import Namespace
 
-import numpy as np
 import seaborn as sns
 import torch
 import torch.nn as nn
@@ -13,8 +12,8 @@ import utils
 from models import autoencoders
 from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
 from models.autoencoders.fc import FullyConnectedAutoencoder, FullyConnectedAutoencoderConfig
-from .clustering_dl_raw import clustering_dl_raw
 from .benchmark import RANDOM_SEED
+from .clustering_dl_raw import clustering_dl_raw
 
 sns.set()
 
@@ -114,11 +113,4 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, 
         torch.save(autoencoder, os.path.join(log_dir, 'test_model'))
     else:
         autoencoder = torch.load(args.load_path)
-
-    # prepare a new dataset with latent representations
-    with torch.no_grad():
-        autoencoder = autoencoder.cpu()
-        x_train = torch.Tensor(total_dataset.signals).cpu()
-        total_dataset.signals = autoencoder.encoder(x_train).numpy()
-
-    clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters)
+    clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters, autoencoder)

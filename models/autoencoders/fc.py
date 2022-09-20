@@ -15,8 +15,14 @@ class FullyConnectedAutoencoder(nn.Module):
 
     def __init__(self, cfg: FullyConnectedAutoencoderConfig):
         super().__init__()
+        self.cfg = cfg
+
         self.encoder_layers = nn.Sequential(
-            nn.Linear(cfg.data_shape[0], cfg.latent_size),
+            nn.Linear(cfg.data_shape[0], 128),
+            nn.BatchNorm1d(128),
+            cfg.activation,
+            nn.Dropout(cfg.dropout),
+            nn.Linear(128, cfg.latent_size),
             nn.BatchNorm1d(cfg.latent_size),
             cfg.activation,
             nn.Dropout(cfg.dropout),
@@ -24,11 +30,15 @@ class FullyConnectedAutoencoder(nn.Module):
         )
 
         self.decoder_layers = nn.Sequential(
-            nn.Linear(cfg.latent_size, cfg.data_shape[0]),
-            nn.BatchNorm1d(cfg.data_shape[0]),
+            nn.Linear(cfg.latent_size, cfg.latent_size),
+            nn.BatchNorm1d(cfg.latent_size),
             cfg.activation,
             nn.Dropout(cfg.dropout),
-            nn.Linear(cfg.data_shape[0], cfg.data_shape[0])
+            nn.Linear(cfg.latent_size, 128),
+            nn.BatchNorm1d(128),
+            cfg.activation,
+            nn.Dropout(cfg.dropout),
+            nn.Linear(128, cfg.data_shape[0])
         )
 
     def encoder(self, inputs):
