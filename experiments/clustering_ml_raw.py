@@ -56,6 +56,10 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
     log_file = os.path.join(log_dir, "log.txt")
     log_picture = os.path.join(log_dir, "tsne.png")
 
+    # find TSNE mapping (one for all algorithms)
+    tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
+    x_tsne = tsne.fit_transform(x)
+
     # start benchmarking
     with open(log_file, 'w') as f:
         with redirect_stdout(f):
@@ -77,8 +81,6 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
                 colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
 
                 # plot TSNE
-                tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
-                x_tsne = tsne.fit_transform(x)
                 ax = axs.reshape(-1)[plot_num]
                 ax.set_title(algorithm_name, size=DEFAULT_PARAMS["title_size"])
                 ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)

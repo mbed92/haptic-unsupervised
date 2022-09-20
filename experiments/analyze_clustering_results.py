@@ -6,7 +6,7 @@ from contextlib import redirect_stdout
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from matplotlib.ticker import MultipleLocator, AutoMinorLocator
+from matplotlib.ticker import MultipleLocator
 from torch.utils.data import Dataset
 
 from experiments.benchmark import DEFAULT_PARAMS
@@ -33,27 +33,17 @@ def open_pickle(path):
     return results
 
 
-def plot_supervised_classes_in_unsupervised_clusters(title: str, data: dict, ax: plt.Axes):
+def plot_tnse(title: str, x_tsne: np.ndarray, y_tsne: np.ndarray, predictions: np.ndarray, ax: plt.Axes):
     # assign separate color to each supervised class
-    n_supervised_classes = int(max(data["y_supervised"]) + 1)
-    colors = plt.cm.rainbow(np.linspace(0, 1, n_supervised_classes))
+    n_classes = int(max(predictions) + 1)
+    colors = plt.cm.rainbow(np.linspace(0, 1, n_classes))
 
     # plot TSNE results with supervised color-labels
     ax.set_title(title, size=DEFAULT_PARAMS["title_size"])
-    ax.scatter(data["x_tsne"][:, 0], data["x_tsne"][:, 1],
-               c=colors[data["y_supervised"]],
-               edgecolor='none',
-               alpha=0.5)
-
-    # append centroids if possible
-    if "centroids_tsne" in data.keys():
-        ax.scatter(data["centroids_tsne"][:, 0], data["centroids_tsne"][:, 1],
-                   c='black',
-                   edgecolor='none',
-                   alpha=0.5)
+    ax.scatter(x_tsne, y_tsne, c=colors[predictions], edgecolor='none', alpha=0.5)
 
 
-def print_supervised_classes_in_unsupervised_clusters(index_to_class: np.ndarray, results: dict):
+def log_info(index_to_class: np.ndarray, results: dict):
     total_cluster_ids = np.unique(results["y_unsupervised"])
     _, cls_counts = np.unique(results["y_supervised"], return_counts=True)
 
@@ -76,21 +66,37 @@ def print_supervised_classes_in_unsupervised_clusters(index_to_class: np.ndarray
         print("\n")
 
 
+def get_distance_mat(x: np.ndarray, predictions: np.ndarray):
+    embeddings = list()
+    cluster_ids = np.unique(predictions)
+    for cls_id in cluster_ids:
+        cls_idx = np.argwhere(predictions == cls_id)[:, 0]
+        emb = np.mean(x[cls_idx], 0)
+        embeddings.append(emb)
+
+    return np.stack(embeddings)
+
+
 def analyze_clustering_results(dataset: Dataset, results_folder: str):
     dirs = glob.glob(os.path.join(results_folder, "*pickle"))
+
+    # TSNE plots
+    x_tsne, y_tsne = None, None
+    n_rows = DEFAULT_PARAMS["n_rows"]
+    n_cols = np.ceil(len(dirs) / n_rows).astype(np.int)
+
+    # create a space for the supervised classes TSNE
+    if n_cols * n_rows == len(dirs):
+        n_rows += 1
 
     # BAR plot
     bar_labels = list()
     bar_multi_heights, bar_multi_positions, bar_multi_widths, bar_multi_names = list(), list(), list(), list()
 
-    # TSNE plot
-    n_rows = DEFAULT_PARAMS["n_rows"]
-    n_cols = np.ceil(len(dirs) / n_rows).astype(np.int)
+    # generate data
     fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
-
     for file_no, results_file in enumerate(sorted(dirs)):
-        algorithm_name = results_file.split("/")[-1]
-        algorithm_name = algorithm_name.rsplit(".")[0]
+        algorithm_name = results_file.split("/")[-1].rsplit(".")[0]
 
         # open the file
         data = open_pickle(results_file)
@@ -98,19 +104,25 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
             continue
 
         # 1. create a scatter plot of supervised labels in unsupervised clusters
-        plot_supervised_classes_in_unsupervised_clusters(algorithm_name, data, axs.reshape(-1)[file_no])
+        # pick the same 2D TSNE for all plots (assume all results are about the same dataset)
+        if x_tsne is None and y_tsne is None:
+            x_tsne, y_tsne = data["x_tsne"][:, 0], data["x_tsne"][:, 1]
+        plot_tnse(algorithm_name, x_tsne, y_tsne, data["y_unsupervised"], axs.reshape(-1)[file_no])
+
+        # add reference TSNE with supervised classes, add it to the next Axis
+        if file_no == len(dirs) - 1:
+            plot_tnse("Supervised classes", x_tsne, y_tsne, data["y_supervised"], axs.reshape(-1)[-1])
 
         # 2. print clustering info: cluster no | num supervised classes | list supervised classes
-        log_summary = os.path.join(results_folder, f"{algorithm_name}_summary.txt")
-
         # prepare class-to-index mapping
         index_to_class = None
         if hasattr(dataset, "meta") and dataset.meta.shape[0] == data["y_supervised"].shape[0]:
             index_to_class = dataset.meta[:, 0]
 
+        log_summary = os.path.join(results_folder, f"{algorithm_name}_summary.txt")
         with open(log_summary, 'w') as f:
             with redirect_stdout(f):
-                print_supervised_classes_in_unsupervised_clusters(index_to_class, data)
+                log_info(index_to_class, data)
 
         # 3. gather metrics for a bar plot (filter some of them)
         num_metrics = len(data["metrics"])
@@ -136,9 +148,8 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)
 
-    # close previous figure and iterate again
+    # close previous figure and create a new with a bar plot
     fig, ax = plt.subplots(constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
-
     labels = bar_multi_names[0]
     for i, name in enumerate(labels):
         series_heights = [bmh[i] for bmh in bar_multi_heights]
@@ -146,20 +157,16 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         series_positions = [bmp[i] for bmp in bar_multi_positions]
         ax.bar(series_positions, series_heights, series_widths, label=name)
 
-    # Set axis ranges; by default this will put major ticks every 25.
     ax.set_xlim(-0.5, 6.5)
     ax.set_ylim(0.0, 1.0)
     ax.xaxis.set_major_locator(MultipleLocator(0.1))
     ax.yaxis.set_major_locator(MultipleLocator(0.1))
     ax.grid(which='major', color='#CCCCCC', linestyle='--')
     ax.grid(which='minor', color='#CCCCCC', linestyle=':')
-
     ax.set_ylabel('Score', fontsize=DEFAULT_PARAMS["title_size"])
     ax.set_title('Metrics achieved by clustering methods', size=DEFAULT_PARAMS["title_size"])
     ax.set_xticks([sum(bp) / len(bp) for bp in bar_multi_positions], bar_labels)
     ax.legend(fontsize=DEFAULT_PARAMS["title_size"])
-
     log_picture = os.path.join(results_folder, "summary_bar_plot.png")
     plt.savefig(log_picture, dpi=fig.dpi)
-    plt.show()
     plt.close(fig)
