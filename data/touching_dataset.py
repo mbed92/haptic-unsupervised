@@ -61,7 +61,7 @@ class TouchingDataset(Dataset):
     def __add__(self, other_touching):
         self.mean = (self.mean + other_touching.mean) / 2.0
         self.std = (self.std + other_touching.std) / 2.0
-        self.weights = (self.weights + other_touching.weights) / 2.0
+        self.weights = (self.weights + other_touching.weights)
         self.signals = np.concatenate([self.signals, other_touching.signals], 0)
         self.labels = np.concatenate([self.labels, other_touching.labels], 0)
         return self

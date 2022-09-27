@@ -8,7 +8,6 @@ import numpy as np
 import seaborn as sns
 from sklearn.manifold import TSNE
 from sklearn.neighbors import kneighbors_graph
-from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset
 
 import utils.sklearn_benchmark
@@ -18,9 +17,6 @@ sns.set()
 
 
 def setup_params(x, params):
-    # normalize dataset for easier parameter selection
-    x = StandardScaler().fit_transform(x)
-
     # connectivity matrix for structured Ward
     connectivity = kneighbors_graph(
         x, n_neighbors=params["n_neighbors"], include_self=False

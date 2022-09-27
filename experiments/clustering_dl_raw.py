@@ -45,8 +45,19 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     original_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
     clustering_dataloader = copy.deepcopy(original_dataloader)
+
+    # for embeddings we need to set up the autoencoder also
+    ae_scheduler, ae_optimizer = None, None
     if autoencoder is not None:
         clustering_dataloader = _get_embeddings_dataloader(autoencoder, clustering_dataloader, device)
+        backprop_config = autoencoders.ops.BackpropConfig()
+        backprop_config.model = autoencoder
+        backprop_config.optimizer = torch.optim.AdamW
+        backprop_config.lr = args.lr
+        backprop_config.eta_min = args.eta_min
+        backprop_config.epochs = args.epochs_ae
+        backprop_config.weight_decay = args.weight_decay
+        ae_optimizer, ae_scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # setup a model
     x_train, y_train = helpers.get_total_data_from_dataloader(clustering_dataloader)
@@ -73,18 +84,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
     backprop_config.weight_decay = args.weight_decay
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
 
-    ae_scheduler, ae_optimizer = None, None
-    if autoencoder is not None:
-        backprop_config = autoencoders.ops.BackpropConfig()
-        backprop_config.model = autoencoder
-        backprop_config.optimizer = torch.optim.AdamW
-        backprop_config.lr = args.lr
-        backprop_config.eta_min = args.eta_min
-        backprop_config.epochs = args.epochs_ae
-        backprop_config.weight_decay = args.weight_decay
-        ae_optimizer, ae_scheduler = autoencoders.ops.backprop_init(backprop_config)
-
-    # train the clust_model model
+    # train the clust_model
     with SummaryWriter(log_dir=log_dir) as writer:
         best_loss = inf
         best_epoch = 0
@@ -94,7 +94,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
         # train epoch
         for epoch in range(args.epochs_dec):
 
-            # reconstruction assignment
+            # reconstruction assignment if needed to create embeddings
             if None not in [autoencoder, ae_scheduler, ae_optimizer]:
                 ae_loss, _ = autoencoders.ops.train_epoch(autoencoder, original_dataloader, ae_optimizer, device)
                 writer.add_scalar(f"RECONSTRUCTION/train/{ae_loss.name}", ae_loss.get(), epoch)
@@ -104,7 +104,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
             # clustering assignment
             loss, metrics = dec.ops.train_epoch(clust_model, clustering_dataloader, optimizer, device)
 
-            # training collapsed
+            # go to next epoch if training collapsed (e.g. all clusters are assigned to one cluster)
             if None in [loss, metrics]:
                 continue
 

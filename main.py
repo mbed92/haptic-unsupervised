@@ -22,18 +22,16 @@ def main(args):
 
     # load the dataset
     total_dataset = helpers.load_dataset(config)
-    if len(total_dataset.signals[0].shape) == 1:
-        total_dataset.signals = StandardScaler().fit_transform(total_dataset.signals)
 
     # run a specified experiment
     if args.experiment_name == "clustering_ml_raw":
-        experiments.clustering_ml_raw(total_dataset, log_dir, 4)
+        experiments.clustering_ml_raw(total_dataset, log_dir, 6)
 
     elif args.experiment_name == "clustering_dl_raw":
-        experiments.clustering_dl_raw(total_dataset, log_dir, args, 4)
+        experiments.clustering_dl_raw(total_dataset, log_dir, args, 6)
 
     elif args.experiment_name == "clustering_dl_latent":
-        experiments.clustering_dl_latent(total_dataset, log_dir, args, 4)
+        experiments.clustering_dl_latent(total_dataset, log_dir, args, 6)
 
     # assumes that results are under ./args.results_folder/{method_name}.pickle in the following dict format:
     # {
@@ -61,7 +59,7 @@ if __name__ == '__main__':
     # deep learning
     parser.add_argument('--epochs-ae', type=int, default=100)
     parser.add_argument('--epochs-dec', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--dropout', type=float, default=0.3)
     parser.add_argument('--kernel-size', type=int, default=3)
     parser.add_argument('--latent-size', type=int, default=10)
@@ -71,7 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--load-path', type=str, default="")
 
     # analysis
-    parser.add_argument('--results-folder', type=str, default="./experiments/results/biotac2")
+    parser.add_argument('--results-folder', type=str, default="./experiments/results/clustering")
 
     args, _ = parser.parse_known_args()
     main(args)

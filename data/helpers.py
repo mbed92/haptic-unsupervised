@@ -40,14 +40,15 @@ def load_dataset(config):
         train_ds = HapticDataset(dataset_path,
                                  key="train_ds",
                                  signal_start=config['signal_start'],
-                                 signal_length=config['signal_length'])
+                                 signal_length=config['signal_length'], standarize=False)
         val_ds = HapticDataset(dataset_path, key="val_ds",
                                signal_start=config['signal_start'],
-                               signal_length=config['signal_length'])
+                               signal_length=config['signal_length'], standarize=False)
         test_ds = HapticDataset(dataset_path, key="test_ds",
                                 signal_start=config['signal_start'],
-                                signal_length=config['signal_length'])
+                                signal_length=config['signal_length'], standarize=False)
         total_dataset = train_ds + val_ds + test_ds
+        total_dataset._standarize()
 
     elif ds_type == "touching":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
@@ -56,22 +57,24 @@ def load_dataset(config):
                                    directions=config['train_val_directions'],
                                    classes=picked_classes,
                                    signal_start=config['signal_start'],
-                                   signal_length=config['signal_length'])
+                                   signal_length=config['signal_length'], standarize=False)
 
         picked_classes = config['test_classes'] if 'test_classes' in config.keys() else []
         test_ds = TouchingDataset(dataset_path,
                                   directions=config['test_directions'],
                                   classes=picked_classes,
                                   signal_start=config['signal_start'],
-                                  signal_length=config['signal_length'])
+                                  signal_length=config['signal_length'], standarize=False)
         total_dataset = train_ds + test_ds
+        total_dataset._standarize()
 
     elif ds_type == "biotac2":
         dataset_path = os.path.join(config['dataset_folder'], config['dataset_file'])
-        train_ds = BiotacDataset(dataset_path, "train")
-        test_ds = BiotacDataset(dataset_path, "test")
-        test_ds.signals = (test_ds.signals - train_ds.mean) / train_ds.std
+        train_ds = BiotacDataset(dataset_path, "train", standarize=False)
+        test_ds = BiotacDataset(dataset_path, "test", standarize=False)
         total_dataset = train_ds + test_ds
+        total_dataset._standarize()
+
     else:
         raise NotImplementedError("Dataset not recognized. Allowed options are: QCAT, PUT, TOUCHING")
 

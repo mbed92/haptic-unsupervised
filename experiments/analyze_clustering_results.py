@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.ticker import MultipleLocator
+from sklearn.metrics.cluster import contingency_matrix
 from torch.utils.data import Dataset
 
 from experiments.benchmark import DEFAULT_PARAMS
@@ -102,10 +103,15 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     bar_labels = list()
     bar_multi_heights, bar_multi_positions, bar_multi_widths, bar_multi_names = list(), list(), list(), list()
 
+    # Contingency matrices
+    cm_cond_list = list()
+    algos_names = list()
+
     # generate data
     fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
     for file_no, results_file in enumerate(sorted(dirs)):
         algorithm_name = results_file.split("/")[-1].rsplit(".")[0]
+        algos_names.append(algorithm_name)
 
         # open the file
         data = open_pickle(results_file)
@@ -152,6 +158,11 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         bar_multi_widths.append(bar_widths)
         bar_multi_positions.append(bar_positions)
 
+        # 4. Contingency matrix
+        cm = contingency_matrix(data["y_unsupervised"], data["y_supervised"])
+        cm_cond = cm / cm.sum(axis=0)
+        cm_cond_list.append(cm_cond)
+
     # save the TSNE picture
     log_picture = os.path.join(results_folder, "summary_tsne.png")
     plt.savefig(log_picture, dpi=fig.dpi)
@@ -177,5 +188,18 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     ax.set_xticks([sum(bp) / len(bp) for bp in bar_multi_positions], bar_labels)
     ax.legend(fontsize=DEFAULT_PARAMS["title_size"])
     log_picture = os.path.join(results_folder, "summary_bar_plot.png")
+    plt.savefig(log_picture, dpi=fig.dpi)
+    plt.close(fig)
+
+    # plot contingency matrices
+    size = [25, DEFAULT_PARAMS["figsize"][1]]
+    fig, axes = plt.subplots(nrows=len(cm_cond_list), constrained_layout=True, figsize=size)
+    for i, cm in enumerate(cm_cond_list):
+        ax = axes.reshape(-1)[i]
+        ax.set_title(algos_names[i], fontsize=DEFAULT_PARAMS["title_size"])
+        sns.heatmap(cm, annot=True, fmt='.2f', cmap="YlGnBu", vmin=0.0, vmax=1.0, ax=ax)
+        # TODO
+        
+    log_picture = os.path.join(results_folder, "contingency.png")
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)

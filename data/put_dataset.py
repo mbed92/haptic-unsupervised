@@ -37,5 +37,5 @@ class HapticDataset(Dataset):
         self.std = (self.std + other_haptic.std) / 2.0
         self.signals = np.concatenate([self.signals, other_haptic.signals], 0)
         self.labels = np.concatenate([self.labels, other_haptic.labels], 0)
-        self.weights = np.concatenate([self.weights, other_haptic.weights], 0) / 2.0
+        self.weights = np.concatenate([self.weights, other_haptic.weights], 0)
         return self
