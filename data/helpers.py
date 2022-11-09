@@ -1,6 +1,7 @@
 import os
 
 from .biotac_dataset import BiotacDataset
+from .mock_dataset import MockDataset
 from .put_dataset import HapticDataset
 from .touching_dataset import TouchingDataset
 
@@ -57,7 +58,10 @@ def load_dataset(config):
         total_dataset = train_ds + test_ds
         total_dataset._standarize()
 
+    elif ds_type == "mock":
+        total_dataset = MockDataset()
+
     else:
-        raise NotImplementedError("Dataset not recognized. Allowed options are: put, touching, biotac2")
+        raise NotImplementedError("Dataset not recognized. Allowed options are: put, touching, biotac2, mock")
 
     return total_dataset

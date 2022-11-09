@@ -28,7 +28,7 @@ def main(args):
         experiments.clustering_ml_raw(total_dataset, log_dir, config['num_clusters'])
 
     elif args.experiment == "dl_raw":
-        experiments.clustering_dl_raw(total_dataset, log_dir, args, config['num_clusters'])
+        experiments.clustering_dl(total_dataset, log_dir, args, config['num_clusters'])
 
     elif args.experiment == "dl_latent":
         experiments.clustering_dl_latent(total_dataset, log_dir, args, config['num_clusters'])
@@ -49,12 +49,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="touching", choices=['biotac2', 'put', 'touching'])
-    parser.add_argument('--experiment', type=str, default="ml_raw",
+    parser.add_argument('--dataset', type=str, default="mock", choices=['biotac2', 'put', 'touching', 'mock'])
+    parser.add_argument('--experiment', type=str, default="dl_latent",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze'])
 
     # deep learning (common for all types of experiments)
-    parser.add_argument('--epochs-ae', type=int, default=100)
+    parser.add_argument('--epochs-ae', type=int, default=500)
     parser.add_argument('--epochs-dec', type=int, default=300)
     parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--dropout', type=float, default=0.3)

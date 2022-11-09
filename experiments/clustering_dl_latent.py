@@ -13,7 +13,7 @@ from models import autoencoders
 from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
 from models.autoencoders.fc import FullyConnectedAutoencoder, FullyConnectedAutoencoderConfig
 from utils.sklearn_benchmark import RANDOM_SEED
-from .clustering_dl_raw import clustering_dl_raw
+from .clustering_dl import clustering_dl
 
 sns.set()
 
@@ -91,6 +91,8 @@ def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config,
                 best_loss = current_test_loss
                 best_model = copy.deepcopy(autoencoder)
 
+            print(f"Autoencoder training. Epoch: {epoch}, loss: {current_test_loss}")
+
     return best_model
 
 
@@ -99,18 +101,15 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, 
 
     # prepare the autoencoder (should work on data with shapes NxC or NxCxL)
     shape = total_dataset.signals.shape
-    create_fc_autoencoder = False
-    if len(shape) == 2:
-        create_fc_autoencoder = True
 
     # train & save or load the autoencoder
     if args.load_path == "":
-        if create_fc_autoencoder:
+        if len(shape) == 2:
             autoencoder = train_fc_autoencoder(total_dataset, log_dir, args)
         else:
             autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
 
-        torch.save(autoencoder, os.path.join(log_dir, 'test_model'))
+        torch.save(autoencoder, os.path.join(log_dir, 'autoencoder'))
     else:
         autoencoder = torch.load(args.load_path)
-    clustering_dl_raw(total_dataset, log_dir, args, expected_num_clusters, autoencoder)
+    clustering_dl(total_dataset, log_dir, args, expected_num_clusters, autoencoder)
