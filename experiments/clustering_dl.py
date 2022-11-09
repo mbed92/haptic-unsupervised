@@ -130,21 +130,13 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
             outputs = best_model(torch.Tensor(x))
             y_pred = torch.argmax(outputs, -1).detach().cpu().numpy()
 
-            # draw tsne for the best model with learned centroids
-            centroids = best_model.centroids.numpy()
-
-            # setup colors
-            colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
-
             # plot TSNE
+            colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
+            centroids = best_model.centroids.numpy()
             tsne = TSNE(n_components=SCIKIT_LEARN_PARAMS["tsne_n_components"])
             num_points = len(clustering_dataloader.dataset.signals)
             embeddings = np.concatenate([clustering_dataloader.dataset.signals, centroids])
             x_tsne = tsne.fit_transform(embeddings)
-
-            ax.set_title('DEC', size=18)
-            ax.scatter(x_tsne[:num_points, 0], x_tsne[:num_points, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
-            ax.scatter(x_tsne[num_points:, 0], x_tsne[num_points:, 1], c='black', s=200)
 
             # save embeddings
             file_handler = open(os.path.join(log_dir, "DEC.pickle"), "wb")
@@ -155,6 +147,11 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
                 "y_unsupervised": y_pred,
                 "metrics": best_metrics
             }, file_handler)
+
+            # visualize
+            ax.set_title('DEC', size=18)
+            ax.scatter(x_tsne[:num_points, 0], x_tsne[:num_points, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
+            ax.scatter(x_tsne[num_points:, 0], x_tsne[num_points:, 1], c='black', s=200)
 
         # save tsne
         log_picture = os.path.join(log_dir, "tsne.png")

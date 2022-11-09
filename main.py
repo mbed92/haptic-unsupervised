@@ -31,7 +31,7 @@ def main(args):
         #   "y_unsupervised": [N],
         #   "metrics": [K]
         # }
-        experiments.analyze_clustering_results(total_dataset, base_dir)
+        experiments.analyze_clustering_results(base_dir)
     else:
         log_dir = utils_haptr.log.logdir_name(base_dir, args.experiment)
         utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
@@ -50,9 +50,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="mock",
+    parser.add_argument('--dataset', type=str, default="biotac2",
                         choices=['biotac2', 'put', 'touching', 'mock'])
-    parser.add_argument('--experiment', type=str, default="dl_raw",
+    parser.add_argument('--experiment', type=str, default="analyze",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze'])
 
     # deep learning (common for all types of experiments)

@@ -7,7 +7,6 @@ import numpy as np
 import seaborn as sns
 from matplotlib.ticker import MultipleLocator
 from sklearn.metrics.cluster import contingency_matrix
-from torch.utils.data import Dataset
 
 from utils.sklearn_benchmark import SCIKIT_LEARN_PARAMS
 
@@ -86,7 +85,7 @@ def get_distance_mat(x: np.ndarray, predictions: np.ndarray):
     return np.stack(embeddings)
 
 
-def analyze_clustering_results(dataset: Dataset, results_folder: str):
+def analyze_clustering_results(results_folder: str):
     f = os.path.join(results_folder, "**", "*.pickle")
     dirs = glob.glob(f, recursive=True)
 
@@ -110,6 +109,7 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     # generate data
     fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
     for file_no, results_file in enumerate(sorted(dirs)):
+        print("Processing: ", results_file)
         algorithm_name = results_file.split("/")[-1].rsplit(".")[0]
         algos_names.append(algorithm_name)
 
@@ -120,17 +120,17 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
 
         # 1. create a scatter plot of supervised labels in unsupervised clusters
         # pick the same 2D TSNE for all plots (assume all results are about the same dataset)
-        if x_tsne is None and y_tsne is None:
-            x_tsne, y_tsne = data["x_tsne"][:, 0], data["x_tsne"][:, 1]
-        plot_tnse(algorithm_name, x_tsne, y_tsne, data["y_unsupervised"], axs.reshape(-1)[file_no])
+        plot_tnse(algorithm_name, data["x_tsne"][:, 0], data["x_tsne"][:, 1],
+                  data["y_unsupervised"], axs.reshape(-1)[file_no])
 
         # add reference TSNE with supervised classes, add it to the next Axis
         if file_no == len(dirs) - 1:
-            plot_tnse("Supervised classes", x_tsne, y_tsne, data["y_supervised"], axs.reshape(-1)[-1])
+            plot_tnse("Supervised classes", data["x_tsne"][:, 0], data["x_tsne"][:, 1],
+                      data["y_supervised"], axs.reshape(-1)[-1])
 
         # 2. TODO print clustering info: cluster no | num supervised classes | list supervised classes
         # prepare class-to-index mapping
-        index_to_class = None
+        # index_to_class = None
         # if hasattr(dataset, "meta") and dataset.meta.shape[0] == data["y_supervised"].shape[0]:
         #     index_to_class = dataset.meta[:, 0]
         #
