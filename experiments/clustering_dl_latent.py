@@ -27,7 +27,6 @@ def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
     nn_params.data_shape = data_shape
     nn_params.kernel = args.kernel_size
     nn_params.activation = nn.GELU()
-    nn_params.dropout = args.dropout
     autoencoder = TimeSeriesConvAutoencoder(nn_params)
     device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
@@ -52,7 +51,6 @@ def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
     nn_params.data_shape = [data_shape]
     nn_params.kernel = args.kernel_size
     nn_params.activation = nn.GELU()
-    nn_params.dropout = args.dropout
     nn_params.latent_size = args.latent_size
     autoencoder = FullyConnectedAutoencoder(nn_params)
     device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
@@ -87,11 +85,11 @@ def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config,
             # save the best autoencoder
             current_test_loss = train_loss.get()
             if current_test_loss < best_loss:
-                torch.save(autoencoder, os.path.join(writer.log_dir, 'test_model'))
+                torch.save(autoencoder, os.path.join(writer.log_dir, 'autoencoder.pt'))
                 best_loss = current_test_loss
                 best_model = copy.deepcopy(autoencoder)
 
-            print(f"Autoencoder training. Epoch: {epoch}, loss: {current_test_loss}")
+            print(f"Autoencoder training. Epoch: {epoch}, best loss: {best_loss}")
 
     return best_model
 
@@ -109,7 +107,7 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, 
         else:
             autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
 
-        torch.save(autoencoder, os.path.join(log_dir, 'autoencoder'))
+        torch.save(autoencoder, os.path.join(log_dir, 'autoencoder.pt'))
     else:
         autoencoder = torch.load(args.load_path)
     clustering_dl(total_dataset, log_dir, args, expected_num_clusters, autoencoder)

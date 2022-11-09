@@ -6,7 +6,6 @@ import torch.nn as nn
 
 class FullyConnectedAutoencoderConfig:
     data_shape: iter
-    dropout: float
     activation: nn.Module
     latent_size: int
 
@@ -21,11 +20,9 @@ class FullyConnectedAutoencoder(nn.Module):
             nn.Linear(cfg.data_shape[0], 128),
             nn.BatchNorm1d(128),
             cfg.activation,
-            nn.Dropout(cfg.dropout),
             nn.Linear(128, cfg.latent_size),
             nn.BatchNorm1d(cfg.latent_size),
             cfg.activation,
-            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.latent_size, cfg.latent_size)
         )
 
@@ -33,11 +30,9 @@ class FullyConnectedAutoencoder(nn.Module):
             nn.Linear(cfg.latent_size, cfg.latent_size),
             nn.BatchNorm1d(cfg.latent_size),
             cfg.activation,
-            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.latent_size, 128),
             nn.BatchNorm1d(128),
             cfg.activation,
-            nn.Dropout(cfg.dropout),
             nn.Linear(128, cfg.data_shape[0])
         )
 

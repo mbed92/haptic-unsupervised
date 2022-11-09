@@ -21,11 +21,9 @@ class RCNNAutoencoder(nn.Module):
             nn.Linear(self.cfg.latent_dim * self.cfg.num_layers, cfg.hidden_units),
             nn.BatchNorm1d(cfg.hidden_units),
             nn.GELU(),
-            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.hidden_units, cfg.hidden_units),
             nn.BatchNorm1d(cfg.hidden_units),
             nn.GELU(),
-            nn.Dropout(cfg.dropout),
             nn.Linear(cfg.hidden_units, self.cfg.sequence_length * cfg.input_num_channels)
         )
 

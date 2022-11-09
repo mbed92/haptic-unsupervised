@@ -19,7 +19,7 @@ def save_embeddings(log_dir, embeddings: torch.Tensor, labels: torch.Tensor, wri
         for label in labels:
             f.write(f'{label}\n')
 
-    torch.save({"embedding": embeddings}, os.path.join(log_dir, f"embeddings_{global_step}"))
+    torch.save({"embedding": embeddings}, os.path.join(log_dir, f"embeddings_{global_step}.pt"))
     writer.add_embedding(embeddings, labels, global_step=global_step)
 
 

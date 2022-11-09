@@ -37,16 +37,13 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
     torch.manual_seed(RANDOM_SEED)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # clustering model requires flattened data
-    if len(total_dataset.signals.shape) > 2:
-        total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
-
     # create the data loader
-    original_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
     if autoencoder is not None:
-        clustering_dataloader = _get_embeddings_dataloader(autoencoder, original_dataloader, device)
+        clustering_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
+        clustering_dataloader = _get_embeddings_dataloader(autoencoder, clustering_dataloader, device)
     else:
-        clustering_dataloader = copy.deepcopy(original_dataloader)
+        total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
+        clustering_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
 
     inputs = clustering_dataloader.dataset.signals
     if len(inputs.shape) > 2:
@@ -97,7 +94,7 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
             # save the best model and log metrics
             current_loss = loss.get()
             if current_loss < best_loss:
-                torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model'))
+                torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model.pt'))
                 best_model = copy.deepcopy(clust_model)
                 best_loss = current_loss
                 best_epoch = epoch
