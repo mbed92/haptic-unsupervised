@@ -12,7 +12,7 @@ import utils
 from models import autoencoders
 from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
 from models.autoencoders.fc import FullyConnectedAutoencoder, FullyConnectedAutoencoderConfig
-from .benchmark import RANDOM_SEED
+from utils.sklearn_benchmark import RANDOM_SEED
 from .clustering_dl_raw import clustering_dl_raw
 
 sns.set()

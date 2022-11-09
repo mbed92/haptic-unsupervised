@@ -39,7 +39,6 @@ class TouchingDataset(Dataset):
                 self.num_classes = len(classes)
 
         self.mean, self.std = np.mean(self.signals, (0, 2), keepdims=True), np.std(self.signals, (0, 2), keepdims=True)
-        self.weights = np.ones(self.num_classes)
         self.signal_start = signal_start
         self.signal_length = signal_length
 
@@ -61,7 +60,6 @@ class TouchingDataset(Dataset):
     def __add__(self, other_touching):
         self.mean = (self.mean + other_touching.mean) / 2.0
         self.std = (self.std + other_touching.std) / 2.0
-        self.weights = (self.weights + other_touching.weights)
         self.signals = np.concatenate([self.signals, other_touching.signals], 0)
         self.labels = np.concatenate([self.labels, other_touching.labels], 0)
         return self

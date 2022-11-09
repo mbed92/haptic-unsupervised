@@ -23,8 +23,8 @@ def get_sklearn_clustering_metrics_true_pred():
 def get_sklearn_clustering_algorithms(params, connectivity):
     two_means = cluster.MiniBatchKMeans(n_clusters=params["n_clusters"])
     ward = cluster.AgglomerativeClustering(
-        n_clusters=params["n_clusters"], linkage="ward", connectivity=connectivity
-    )
+        n_clusters=params["n_clusters"],
+        connectivity=connectivity)
     spectral = cluster.SpectralClustering(
         n_clusters=params["n_clusters"],
         eigen_solver="arpack",
@@ -37,9 +37,7 @@ def get_sklearn_clustering_algorithms(params, connectivity):
         connectivity=connectivity,
     )
     birch = cluster.Birch(n_clusters=params["n_clusters"])
-    gmm = mixture.GaussianMixture(
-        n_components=params["n_clusters"], covariance_type="full"
-    )
+    gmm = mixture.GaussianMixture(n_components=params["n_clusters"])
 
     return (
         ("KMeans", two_means),
@@ -49,3 +47,23 @@ def get_sklearn_clustering_algorithms(params, connectivity):
         ("BIRCH", birch),
         ("GaussianMixture", gmm),
     )
+
+
+RANDOM_SEED = 0
+
+SCIKIT_LEARN_PARAMS = {
+    "quantile": 0.3,
+    "eps": 0.3,
+    "damping": 0.9,
+    "preference": -200,
+    "n_neighbors": 3,
+    "n_latent_size": 10,
+    "min_samples": 7,
+    "xi": 0.05,
+    "min_cluster_size": 0.1,
+    "n_rows": 2,
+    "tsne_n_components": 2,
+    "svd_components": 20,
+    "title_size": 18,
+    "figsize": (15, 15)
+}

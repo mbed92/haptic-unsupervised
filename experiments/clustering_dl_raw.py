@@ -16,9 +16,8 @@ from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
-from data import helpers
 from models import dec, autoencoders
-from .benchmark import DEFAULT_PARAMS, RANDOM_SEED
+from utils.sklearn_benchmark import RANDOM_SEED, SCIKIT_LEARN_PARAMS
 
 sns.set()
 
@@ -60,7 +59,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
         ae_optimizer, ae_scheduler = autoencoders.ops.backprop_init(backprop_config)
 
     # setup a model
-    x_train, y_train = helpers.get_total_data_from_dataloader(clustering_dataloader)
+    x_train, y_train = clustering_dataloader.signals, clustering_dataloader.labels
 
     # verify the embeddings shape
     shape = total_dataset.signals.shape
@@ -135,7 +134,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
         with torch.no_grad():
             best_model.cpu()
 
-            fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
+            fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
             log_picture = os.path.join(log_dir, "tsne.png")
 
             x, y = clustering_dataloader.dataset.signals, clustering_dataloader.dataset.labels
@@ -151,7 +150,7 @@ def clustering_dl_raw(total_dataset: Dataset, log_dir: str, args: Namespace, exp
             colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
 
             # plot TSNE
-            tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
+            tsne = TSNE(n_components=SCIKIT_LEARN_PARAMS["tsne_n_components"])
             num_points = len(clustering_dataloader.dataset.signals)
             embeddings = np.concatenate([clustering_dataloader.dataset.signals, centroids])
             x_tsne = tsne.fit_transform(embeddings)

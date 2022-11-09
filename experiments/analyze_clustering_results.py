@@ -10,7 +10,7 @@ from matplotlib.ticker import MultipleLocator
 from sklearn.metrics.cluster import contingency_matrix
 from torch.utils.data import Dataset
 
-from experiments.benchmark import DEFAULT_PARAMS
+from utils.sklearn_benchmark import SCIKIT_LEARN_PARAMS
 
 sns.set()
 
@@ -40,7 +40,7 @@ def plot_tnse(title: str, x_tsne: np.ndarray, y_tsne: np.ndarray, predictions: n
     colors = plt.cm.rainbow(np.linspace(0, 1, n_classes))
 
     # plot TSNE results with supervised color-labels
-    ax.set_title(title, size=DEFAULT_PARAMS["title_size"])
+    ax.set_title(title, size=SCIKIT_LEARN_PARAMS["title_size"])
     ax.scatter(x_tsne, y_tsne, c=colors[predictions], edgecolor='none', alpha=0.5)
 
 
@@ -92,7 +92,7 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
 
     # TSNE plots
     x_tsne, y_tsne = None, None
-    n_rows = DEFAULT_PARAMS["n_rows"]
+    n_rows = SCIKIT_LEARN_PARAMS["n_rows"]
     n_cols = np.ceil(len(dirs) / n_rows).astype(np.int)
 
     # create a space for the supervised classes TSNE
@@ -108,7 +108,7 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     algos_names = list()
 
     # generate data
-    fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
+    fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
     for file_no, results_file in enumerate(sorted(dirs)):
         algorithm_name = results_file.split("/")[-1].rsplit(".")[0]
         algos_names.append(algorithm_name)
@@ -169,7 +169,7 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     plt.close(fig)
 
     # close previous figure and create a new with a bar plot
-    fig, ax = plt.subplots(constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
+    fig, ax = plt.subplots(constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
     labels = bar_multi_names[0]
     for i, name in enumerate(labels):
         series_heights = [bmh[i] for bmh in bar_multi_heights]
@@ -183,23 +183,23 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
     ax.yaxis.set_major_locator(MultipleLocator(0.1))
     ax.grid(which='major', color='#CCCCCC', linestyle='--')
     ax.grid(which='minor', color='#CCCCCC', linestyle=':')
-    ax.set_ylabel('Score', fontsize=DEFAULT_PARAMS["title_size"])
-    ax.set_title('Metrics achieved by clustering methods', size=DEFAULT_PARAMS["title_size"])
+    ax.set_ylabel('Score', fontsize=SCIKIT_LEARN_PARAMS["title_size"])
+    ax.set_title('Metrics achieved by clustering methods', size=SCIKIT_LEARN_PARAMS["title_size"])
     ax.set_xticks([sum(bp) / len(bp) for bp in bar_multi_positions], bar_labels)
-    ax.legend(fontsize=DEFAULT_PARAMS["title_size"])
+    ax.legend(fontsize=SCIKIT_LEARN_PARAMS["title_size"])
     log_picture = os.path.join(results_folder, "summary_bar_plot.png")
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)
 
     # plot contingency matrices
-    size = [25, DEFAULT_PARAMS["figsize"][1]]
+    size = [25, SCIKIT_LEARN_PARAMS["figsize"][1]]
     fig, axes = plt.subplots(nrows=len(cm_cond_list), constrained_layout=True, figsize=size)
     for i, cm in enumerate(cm_cond_list):
         ax = axes.reshape(-1)[i]
-        ax.set_title(algos_names[i], fontsize=DEFAULT_PARAMS["title_size"])
+        ax.set_title(algos_names[i], fontsize=SCIKIT_LEARN_PARAMS["title_size"])
         sns.heatmap(cm, annot=True, fmt='.2f', cmap="YlGnBu", vmin=0.0, vmax=1.0, ax=ax)
         # TODO
-        
+
     log_picture = os.path.join(results_folder, "contingency.png")
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)

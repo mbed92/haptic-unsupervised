@@ -6,26 +6,26 @@ from contextlib import redirect_stdout
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from sklearn.decomposition import TruncatedSVD
 from sklearn.manifold import TSNE
 from sklearn.neighbors import kneighbors_graph
+from sklearn.pipeline import Pipeline
 from torch.utils.data import Dataset
 
-import utils.sklearn_benchmark
-from .benchmark import RANDOM_SEED, DEFAULT_PARAMS
+from utils.sklearn_benchmark import RANDOM_SEED, SCIKIT_LEARN_PARAMS, get_sklearn_clustering_algorithms, \
+    get_sklearn_clustering_metrics_x_labels, get_sklearn_clustering_metrics_true_pred
 
 sns.set()
 
 
-def setup_params(x, params):
+def calculate_connectivity(x, params):
     # connectivity matrix for structured Ward
-    connectivity = kneighbors_graph(
-        x, n_neighbors=params["n_neighbors"], include_self=False
-    )
+    connectivity = kneighbors_graph(x, n_neighbors=params["n_neighbors"])
 
     # make connectivity symmetric
     connectivity = 0.5 * (connectivity + connectivity.T)
 
-    return x, connectivity
+    return connectivity
 
 
 def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_clusters: int):
@@ -33,52 +33,56 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
     x, y = total_dataset.signals, total_dataset.labels
 
     # flatten if needed
+    preprocessing = False
     if len(x.shape) > 2:
         x = np.reshape(x, newshape=(x.shape[0], -1))
+        preprocessing = True
 
     # setup clustering algorithms
-    DEFAULT_PARAMS["n_clusters"] = expected_num_clusters
-    x, connectivity = setup_params(x, DEFAULT_PARAMS)
-    clustering_algorithms = utils.sklearn_benchmark.get_sklearn_clustering_algorithms(DEFAULT_PARAMS, connectivity)
-    clustering_metrics_x_labels = utils.sklearn_benchmark.get_sklearn_clustering_metrics_x_labels()
-    clustering_metrics_true_pred = utils.sklearn_benchmark.get_sklearn_clustering_metrics_true_pred()
+    SCIKIT_LEARN_PARAMS["n_clusters"] = expected_num_clusters
+    connectivity = calculate_connectivity(x, SCIKIT_LEARN_PARAMS)
+    clustering_algorithms = get_sklearn_clustering_algorithms(SCIKIT_LEARN_PARAMS, connectivity)
+    clustering_metrics_x_labels = get_sklearn_clustering_metrics_x_labels()
+    clustering_metrics_true_pred = get_sklearn_clustering_metrics_true_pred()
 
     # setup matplotlib
-    n_rows = DEFAULT_PARAMS["n_rows"]
-    n_cols = np.ceil(len(clustering_algorithms) / n_rows).astype(np.int)
-    fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=DEFAULT_PARAMS["figsize"])
+    n_cols = np.ceil(len(clustering_algorithms) / SCIKIT_LEARN_PARAMS["n_rows"]).astype(np.int)
+    fig, axs = plt.subplots(SCIKIT_LEARN_PARAMS["n_rows"], n_cols,
+                            constrained_layout=True,
+                            figsize=SCIKIT_LEARN_PARAMS["figsize"])
 
     # setup logdir
     log_file = os.path.join(log_dir, "log.txt")
     log_picture = os.path.join(log_dir, "tsne.png")
 
     # find TSNE mapping (one for all algorithms)
-    tsne = TSNE(n_components=DEFAULT_PARAMS["tsne_n_components"])
+    tsne = TSNE(n_components=SCIKIT_LEARN_PARAMS["tsne_n_components"])
     x_tsne = tsne.fit_transform(x)
 
     # start benchmarking
     with open(log_file, 'w') as f:
         with redirect_stdout(f):
             for plot_num, (algorithm_name, algorithm) in enumerate(clustering_algorithms):
-                print(f"{algorithm_name} started...\n")
+                if preprocessing:
+                    steps = [('preprocessing', TruncatedSVD(SCIKIT_LEARN_PARAMS['svd_components'])),
+                             ("inference", algorithm)]
+                else:
+                    steps = [("inference", algorithm)]
+
+                pipeline = Pipeline(steps=steps)
+                print(f"{algorithm_name} started... Number of steps: {len(steps)}")
 
                 # inference the algorithm
                 t0 = time.time()
-                algorithm.fit(x)
+                y_pred = pipeline.fit_predict(x)
                 t1 = time.time()
-
-                # get predictions
-                if hasattr(algorithm, "labels_"):
-                    y_pred = algorithm.labels_.astype(int)
-                else:
-                    y_pred = algorithm.predict(x)
 
                 # setup colors
                 colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
 
                 # plot TSNE
                 ax = axs.reshape(-1)[plot_num]
-                ax.set_title(algorithm_name, size=DEFAULT_PARAMS["title_size"])
+                ax.set_title(algorithm_name, size=SCIKIT_LEARN_PARAMS["title_size"])
                 ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
 
                 # print metrics

@@ -9,14 +9,13 @@ class HapticDataset(Dataset):
         with open(path, 'rb') as f:
             pickled = pickle.load(f)
             self.signals = np.asarray([v["signal"] for v in pickled[key]])
-            self.labels = np.asarray([v["label"] for v in pickled[key]])
             self.signals = np.transpose(self.signals, [0, 2, 1])
+            self.labels = np.asarray([v["label"] for v in pickled[key]])
             self.mean, self.std = pickled['signal_stats']
             self.mean = self.mean[:, np.newaxis]
             self.std = self.std[:, np.newaxis]
-            self.weights = pickled['classes_weights']
 
-        self.num_classes = 8
+        self.num_classes = len(np.unique(self.labels))
         self.signal_start = signal_start
         self.signal_length = signal_length
 
@@ -37,5 +36,5 @@ class HapticDataset(Dataset):
         self.std = (self.std + other_haptic.std) / 2.0
         self.signals = np.concatenate([self.signals, other_haptic.signals], 0)
         self.labels = np.concatenate([self.labels, other_haptic.labels], 0)
-        self.weights = np.concatenate([self.weights, other_haptic.weights], 0)
+        self.num_classes = len(np.unique(self.labels))
         return self
