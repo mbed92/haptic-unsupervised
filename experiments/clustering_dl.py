@@ -22,14 +22,13 @@ from utils.sklearn_benchmark import RANDOM_SEED, SCIKIT_LEARN_PARAMS
 sns.set()
 
 
-def _get_embeddings_dataloader(autoencoder, dataloader, device):
-    tmp = copy.deepcopy(dataloader)
+def _get_embeddings(autoencoder, dataset, device):
     with torch.no_grad():
         autoencoder = autoencoder.cpu()
-        x_train = torch.Tensor(dataloader.dataset.signals).cpu()
-        tmp.dataset.signals = autoencoder.encoder(x_train).numpy()
-    autoencoder.to(device)
-    return tmp
+        x = torch.Tensor(dataset).cpu()
+        x = autoencoder.encoder(x)
+        autoencoder.to(device)
+    return x.numpy()
 
 
 def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int,
@@ -38,23 +37,22 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # create the data loader
-    if autoencoder is not None:
-        clustering_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
-        clustering_dataloader = _get_embeddings_dataloader(autoencoder, clustering_dataloader, device)
-    else:
+    if autoencoder is None:
+        signals_dataloader = None
         total_dataset.signals = np.reshape(total_dataset.signals, newshape=(total_dataset.signals.shape[0], -1))
         clustering_dataloader = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
-
-    inputs = clustering_dataloader.dataset.signals
-    if len(inputs.shape) > 2:
-        data_shape = inputs.shape[-2] * inputs.shape[-1]
     else:
-        data_shape = inputs.shape[-1]
+        signals_dataloader = DataLoader(total_dataset, batch_size=args.batch_size_ae, shuffle=True)
+        clustering_dataset = copy.deepcopy(total_dataset)
+        clustering_dataset.signals = _get_embeddings(autoencoder, clustering_dataset.signals, device)
+        clustering_dataloader = DataLoader(clustering_dataset, batch_size=args.batch_size, shuffle=True)
 
-    clust_model = dec.ClusteringModel(expected_num_clusters, data_shape)
+    # create the model
+    inputs = clustering_dataloader.dataset.signals
+    clust_model = dec.ClusteringModel(expected_num_clusters, inputs.shape[-1])
     clust_model.centroids = clust_model.set_kmeans_centroids(inputs, expected_num_clusters)
     clust_model.to(device)
-    summary(clust_model, input_size=data_shape)
+    summary(clust_model, input_size=inputs.shape[-1])
 
     # setup optimizer
     backprop_config = autoencoders.ops.BackpropConfig()
@@ -65,6 +63,15 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
     backprop_config.epochs = args.epochs_dec
     backprop_config.weight_decay = args.weight_decay
     optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
+
+    # setup autoencoder for retraining
+    ae_optimizer, ae_scheduler = None, None
+    if autoencoder is not None:
+        ae_config = copy.deepcopy(backprop_config)
+        ae_config.lr = 1e-4
+        ae_config.eta_min = 1e-5
+        ae_config.model = autoencoder
+        ae_optimizer, ae_scheduler = autoencoders.ops.backprop_init(ae_config)
 
     # train the clust_model
     with SummaryWriter(log_dir=log_dir) as writer:
@@ -78,6 +85,13 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
 
             # clustering assignment
             loss, metrics = dec.ops.train_epoch(clust_model, clustering_dataloader, optimizer, device)
+
+            if None not in [autoencoder, ae_scheduler, ae_optimizer, signals_dataloader]:
+                ae_loss, _ = autoencoders.ops.train_epoch(autoencoder, signals_dataloader, ae_optimizer, device)
+                writer.add_scalar(f"RECONSTRUCTION/train/{ae_loss.name}", ae_loss.get(), epoch)
+                ae_scheduler.step()
+                clustering_dataloader.dataset.signals = _get_embeddings(autoencoder,
+                                                                        signals_dataloader.dataset.signals, device)
 
             # go to next epoch if training collapsed (e.g. all clusters are assigned to one cluster)
             if None in [loss, metrics]:
@@ -110,12 +124,9 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
         with torch.no_grad():
             best_model.cpu()
 
-            fig, ax = plt.subplots(1, 1, constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
-            log_picture = os.path.join(log_dir, "tsne.png")
-
+            fig, ax = plt.subplots(constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
             x, y = clustering_dataloader.dataset.signals, clustering_dataloader.dataset.labels
             x = np.reshape(x, newshape=(x.shape[0], -1))
-
             outputs = best_model(torch.Tensor(x))
             y_pred = torch.argmax(outputs, -1).detach().cpu().numpy()
 
@@ -146,5 +157,6 @@ def clustering_dl(total_dataset: Dataset, log_dir: str, args: Namespace, expecte
             }, file_handler)
 
         # save tsne
+        log_picture = os.path.join(log_dir, "tsne.png")
         plt.savefig(log_picture, dpi=fig.dpi)
         plt.close(fig)

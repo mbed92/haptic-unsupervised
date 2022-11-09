@@ -101,13 +101,12 @@ def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, 
     shape = total_dataset.signals.shape
 
     # train & save or load the autoencoder
-    if args.load_path == "":
+    if args.ae_load_path == "":
         if len(shape) == 2:
             autoencoder = train_fc_autoencoder(total_dataset, log_dir, args)
         else:
             autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
-
-        torch.save(autoencoder, os.path.join(log_dir, 'autoencoder.pt'))
     else:
-        autoencoder = torch.load(args.load_path)
+        autoencoder = torch.load(args.ae_load_path)
+
     clustering_dl(total_dataset, log_dir, args, expected_num_clusters, autoencoder)

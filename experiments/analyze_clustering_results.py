@@ -1,7 +1,6 @@
 import glob
 import os
 import pickle
-from contextlib import redirect_stdout
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -88,7 +87,8 @@ def get_distance_mat(x: np.ndarray, predictions: np.ndarray):
 
 
 def analyze_clustering_results(dataset: Dataset, results_folder: str):
-    dirs = glob.glob(os.path.join(results_folder, "*pickle"))
+    f = os.path.join(results_folder, "**", "*.pickle")
+    dirs = glob.glob(f, recursive=True)
 
     # TSNE plots
     x_tsne, y_tsne = None, None
@@ -128,16 +128,16 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         if file_no == len(dirs) - 1:
             plot_tnse("Supervised classes", x_tsne, y_tsne, data["y_supervised"], axs.reshape(-1)[-1])
 
-        # 2. print clustering info: cluster no | num supervised classes | list supervised classes
+        # 2. TODO print clustering info: cluster no | num supervised classes | list supervised classes
         # prepare class-to-index mapping
         index_to_class = None
-        if hasattr(dataset, "meta") and dataset.meta.shape[0] == data["y_supervised"].shape[0]:
-            index_to_class = dataset.meta[:, 0]
-
-        log_summary = os.path.join(results_folder, f"{algorithm_name}_summary.txt")
-        with open(log_summary, 'w') as f:
-            with redirect_stdout(f):
-                log_info(index_to_class, data)
+        # if hasattr(dataset, "meta") and dataset.meta.shape[0] == data["y_supervised"].shape[0]:
+        #     index_to_class = dataset.meta[:, 0]
+        #
+        # log_summary = os.path.join(results_folder, f"{algorithm_name}_summary.txt")
+        # with open(log_summary, 'w') as f:
+        #     with redirect_stdout(f):
+        #         log_info(index_to_class, data)
 
         # 3. gather metrics for a bar plot (filter some of them)
         num_metrics = len(data["metrics"])
@@ -177,7 +177,7 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         series_positions = [bmp[i] for bmp in bar_multi_positions]
         ax.bar(series_positions, series_heights, series_widths, label=name)
 
-    ax.set_xlim(-0.5, 6.5)
+    ax.set_xlim(-0.5, 7.5)
     ax.set_ylim(0.0, 1.0)
     ax.xaxis.set_major_locator(MultipleLocator(0.1))
     ax.yaxis.set_major_locator(MultipleLocator(0.1))
@@ -198,7 +198,6 @@ def analyze_clustering_results(dataset: Dataset, results_folder: str):
         ax = axes.reshape(-1)[i]
         ax.set_title(algos_names[i], fontsize=SCIKIT_LEARN_PARAMS["title_size"])
         sns.heatmap(cm, annot=True, fmt='.2f', cmap="YlGnBu", vmin=0.0, vmax=1.0, ax=ax)
-        # TODO
 
     log_picture = os.path.join(results_folder, "contingency.png")
     plt.savefig(log_picture, dpi=fig.dpi)

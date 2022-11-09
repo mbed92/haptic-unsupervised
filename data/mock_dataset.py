@@ -6,7 +6,9 @@ from torch.utils.data import Dataset
 class MockDataset(Dataset):
 
     def __init__(self, standarize=True):
-        self.signals, self.labels = make_blobs(n_features=190, centers=3)
+        self.signals, self.labels = make_blobs(n_samples=5000, n_features=160, centers=3)
+        self.signals = np.stack([self.signals] * 6).transpose(1, 0, 2)
+
         self.num_classes = len(np.unique(self.labels))
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
 
