@@ -5,3 +5,4 @@ signal_length: 160
 signal_start: 0
 pick_modalities: [ 0, 1 ]
 split_modalities: False
+num_clusters: 8

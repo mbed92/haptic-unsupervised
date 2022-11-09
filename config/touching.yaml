@@ -7,3 +7,4 @@ dataset_folder: "/home/mbed/Projects/datasets"
 dataset_file: "touching.mat"
 signal_length: 192
 signal_start: 0
+num_clusters: 10

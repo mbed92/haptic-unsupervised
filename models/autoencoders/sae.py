@@ -14,7 +14,6 @@ class SAE(nn.Module):
                  stride: int = 2,
                  act_enc: nn.Module = nn.ReLU,
                  act_dec: nn.Module = nn.ReLU,
-                 dropout: float = 0.0,
                  **kwargs):
 
         super().__init__()
@@ -26,7 +25,6 @@ class SAE(nn.Module):
         if act_enc is not None:
             encoder_layers.append(nn.BatchNorm1d(c_out))
             encoder_layers.append(act_enc)
-            encoder_layers.append(nn.Dropout(dropout))
 
         # build the decoder
         decoder_layers = list()
@@ -35,7 +33,6 @@ class SAE(nn.Module):
         if act_dec is not None:
             decoder_layers.append(nn.BatchNorm1d(c_in))
             decoder_layers.append(act_dec)
-            decoder_layers.append(nn.Dropout(dropout))
 
         if "last_layer" in kwargs.keys():
             decoder_layers.append(kwargs["last_layer"])
@@ -64,12 +61,12 @@ class TimeSeriesAutoencoder(nn.Module):
         assert len(cfg.data_shape) == 2
 
         # the SAE1 with additional mapping between BxNx1 <-> BxNxK
-        self.sae1 = SAE(16, 32, cfg.kernel, cfg.stride, cfg.activation, cfg.activation, cfg.dropout,
-                        first_layer=nn.Conv1d(cfg.data_shape[-1], 16, 1, 1),
-                        last_layer=nn.Conv1d(16, cfg.data_shape[-1], 1, 1))
-        self.sae2 = SAE(32, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation, cfg.dropout)
-        self.sae3 = SAE(64, 128, cfg.kernel, cfg.stride, cfg.activation, cfg.activation, cfg.dropout)
-        self.sae4 = SAE(128, 1, cfg.kernel, cfg.stride, cfg.activation, cfg.activation, cfg.dropout)
+        self.sae1 = SAE(16, 32, cfg.kernel, cfg.stride, cfg.activation, cfg.activation,
+                        first_layer=nn.Conv1d(cfg.data_shape[-1], 16, 1),
+                        last_layer=nn.Conv1d(16, cfg.data_shape[-1], 1))
+        self.sae2 = SAE(32, 64, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae3 = SAE(64, 128, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
+        self.sae4 = SAE(128, 1, cfg.kernel, cfg.stride, cfg.activation, cfg.activation)
         self.sae_modules = [self.sae1, self.sae2, self.sae3, self.sae4]
 
     def encoder(self, x):

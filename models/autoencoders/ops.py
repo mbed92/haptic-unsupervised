@@ -52,7 +52,7 @@ def train_epoch(model, dataloader, optimizer, device, add_exemplary_sample=True)
         reconstruction_loss.add(loss.item())
 
         # add an exemplary sample
-        if add_exemplary_sample and exemplary_sample is None and len(outputs[0].shape) == 3:
+        if add_exemplary_sample and exemplary_sample is None and len(outputs[0].shape) == 2:
             y_pred = outputs[0].detach().cpu().numpy().T
             y_true = data[0][0].detach().cpu().numpy().T
             exemplary_sample = [y_pred, y_true]
