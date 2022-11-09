@@ -19,7 +19,7 @@ sns.set()
 
 
 def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
-    train_dl = DataLoader(ds, batch_size=args.batch_size, shuffle=True)
+    train_dl = DataLoader(ds, batch_size=args.batch_size_ae, shuffle=True)
     data_shape = train_dl.dataset.signals.shape[-2:]
 
     # set up a model (find the best config)
@@ -43,7 +43,7 @@ def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
 
 
 def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
-    train_dl = DataLoader(total_dataset, batch_size=args.batch_size, shuffle=True)
+    train_dl = DataLoader(total_dataset, batch_size=args.batch_size_ae, shuffle=True)
     data_shape = train_dl.dataset.signals.shape[-1]
 
     # set up a model (find the best config)

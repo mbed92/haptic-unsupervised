@@ -49,14 +49,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="touching", choices=['biotac2', 'put', 'touching', 'mock'])
-    parser.add_argument('--experiment', type=str, default="dl_latent",
+    parser.add_argument('--dataset', type=str, default="put", choices=['biotac2', 'put', 'touching', 'mock'])
+    parser.add_argument('--experiment', type=str, default="dl_raw",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze'])
 
     # deep learning (common for all types of experiments)
-    parser.add_argument('--epochs-ae', type=int, default=1000)
-    parser.add_argument('--epochs-dec', type=int, default=1000)
+    parser.add_argument('--epochs-ae', type=int, default=100)
+    parser.add_argument('--epochs-dec', type=int, default=500)
     parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--batch-size-ae', type=int, default=128)
     parser.add_argument('--kernel-size', type=int, default=11)
     parser.add_argument('--latent-size', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
