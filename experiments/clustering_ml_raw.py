@@ -77,14 +77,6 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
                 y_pred = pipeline.fit_predict(x)
                 t1 = time.time()
 
-                # setup colors
-                colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
-
-                # plot TSNE
-                ax = axs.reshape(-1)[plot_num]
-                ax.set_title(algorithm_name, size=SCIKIT_LEARN_PARAMS["title_size"])
-                ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
-
                 # print metrics
                 print(f"{algorithm_name} finished in {t1 - t0}.")
                 metrics = list()
@@ -97,6 +89,12 @@ def clustering_ml_raw(total_dataset: Dataset, log_dir: str, expected_num_cluster
                     metrics.append((sklearn_metric_name, value))
                     print(f"{sklearn_metric_name} achieved {value}.")
                 print("===========================\n\n")
+
+                # TSNE
+                colors = plt.cm.rainbow(np.linspace(0, 1, expected_num_clusters))
+                ax = axs.reshape(-1)[plot_num]
+                ax.set_title(algorithm_name, size=SCIKIT_LEARN_PARAMS["title_size"])
+                ax.scatter(x_tsne[:, 0], x_tsne[:, 1], c=colors[y_pred], edgecolor='none', alpha=0.5)
 
                 # save embeddings
                 file_handler = open(os.path.join(log_dir, "".join((algorithm_name, ".pickle"))), "wb")
