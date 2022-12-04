@@ -7,21 +7,27 @@ import yaml
 import experiments
 import submodules.haptic_transformer.utils as utils_haptr
 from data import helpers
+from experiments.clustering_dl_latent import train_fc_autoencoder, train_time_series_autoencoder
 
 torch.manual_seed(42)
 
 
 def main(args):
-    # load data config
+    # Config
     config_file = os.path.join(os.getcwd(), 'config', f"{args.dataset}.yaml")
     with open(config_file) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
+    if args.overwrite_num_clusters > 0:
+        config['num_clusters'] = args.overwrite_num_clusters
+        print(f"Overwrited default num clusters. Current number: {args.overwrite_num_clusters}.")
+    print(f"Loaded: {config_file}")
 
-    # load the dataset
+    # Dataset
     total_dataset = helpers.load_dataset(config)
     base_dir = os.path.join(os.getcwd(), 'results', args.dataset)
+    print(f"Results: {base_dir}")
 
-    # run a specified experiment
+    # Run a specified experiment
     if args.experiment == "analyze":
         # assumes that results are under "base_dir/{dataset_name}/**/{method_name}.pickle" in the following dict format:
         # {
@@ -36,29 +42,43 @@ def main(args):
         log_dir = utils_haptr.log.logdir_name(base_dir, args.experiment)
         utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
 
+        # Sci-kit Learn ML algorithms
         if args.experiment == "ml_raw":
             experiments.clustering_ml_raw(total_dataset, log_dir, config['num_clusters'])
 
+        # DEC clustering of raw signals (centroids with the same size as input signals)
         elif args.experiment == "dl_raw":
             experiments.clustering_dl(total_dataset, log_dir, args, config['num_clusters'])
 
+        # DEC clustering of latent vecotrs (trains autoencoder before the clustering)
         elif args.experiment == "dl_latent":
-            experiments.clustering_dl_latent(total_dataset, log_dir, args, config['num_clusters'])
+
+            # train & save or load the autoencoder
+            if args.ae_load_path == "":
+                if len(total_dataset.signals.shape) == 2:
+                    autoencoder = train_fc_autoencoder(total_dataset, log_dir, args)
+                else:
+                    autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
+            else:
+                autoencoder = torch.load(args.ae_load_path)
+
+            experiments.clustering_dl(total_dataset, log_dir, args, config['num_clusters'], autoencoder)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="biotac2",
+    parser.add_argument('--dataset', type=str, default="put",
                         choices=['biotac2', 'put', 'touching', 'mock'])
-    parser.add_argument('--experiment', type=str, default="analyze",
+    parser.add_argument('--experiment', type=str, default="dl_latent",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze'])
 
     # deep learning (common for all types of experiments)
+    parser.add_argument('--overwrite-num-clusters', type=int, default=-1)
     parser.add_argument('--epochs-ae', type=int, default=100)
-    parser.add_argument('--epochs-dec', type=int, default=100)
-    parser.add_argument('--batch-size', type=int, default=6)
+    parser.add_argument('--epochs-dec', type=int, default=200)
+    parser.add_argument('--batch-size', type=int, default=3)
     parser.add_argument('--batch-size-ae', type=int, default=256)
     parser.add_argument('--kernel-size', type=int, default=11)
     parser.add_argument('--latent-size', type=int, default=10)

@@ -1,7 +1,10 @@
 """ Fully connected AutEncoder with the attention variant """
+from argparse import Namespace
 
 import torch
 import torch.nn as nn
+
+from models import autoencoders
 
 
 class FullyConnectedAutoencoderConfig:
@@ -48,3 +51,13 @@ class FullyConnectedAutoencoder(nn.Module):
         z = self.encoder(inputs)
         x = self.decoder(z)
         return x
+
+    def setup(self, args: Namespace):
+        backprop_config = autoencoders.ops.BackpropConfig()
+        backprop_config.model = self
+        backprop_config.optimizer = torch.optim.AdamW
+        backprop_config.lr = args.lr
+        backprop_config.eta_min = args.eta_min
+        backprop_config.epochs = args.epochs_ae
+        backprop_config.weight_decay = args.weight_decay
+        return autoencoders.ops.backprop_init(backprop_config)

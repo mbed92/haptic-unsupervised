@@ -10,7 +10,24 @@ from sklearn.metrics.cluster import contingency_matrix
 
 from utils.sklearn_benchmark import SCIKIT_LEARN_PARAMS
 
-sns.set()
+sns.set_style(style="white")
+
+PUT_CLASSES = ['Art. grass', 'Rubber', 'Carpet', 'PVC', 'Ceramic', 'Foam', 'Sand', 'Rocks']
+TOUCHING_CLASSES = ['Soft Card.', 'Hard Card.', 'Rubber', 'Leather', 'Linen bag', 'Plastic', 'Steel', 'Sponge',
+                    'Styro.', 'Plastic bag']
+BIOTAC_CLASSES = ['Aluminum', 'Apple', 'Aquarius Can', 'Plastic Budha', 'Bunny Mascot', 'Pen Case', 'Coke Can',
+                  'Toothpaste', 'Plastic Cone', 'Cookies Plastic', 'Plastic Creeper', 'Detergent', 'Egg Box',
+                  'Plastic Elephant', 'Ball Mascot', 'Glass Bottle', 'Green Gel', 'Green Glass', 'Heat Sink',
+                  'Juice Cartoon',
+                  'Water Bottle', 'Lindor Box', 'Metal Box', 'Metal Pen Case', 'Milk Cartoon', 'Minion Mascot', 'Mug',
+                  'Olaf Mascot', 'Pen Box', 'Plastic Ball', 'Pringles', 'Puleva Bottle', 'Red Can', 'Rollon',
+                  'Rugby Ball', 'Salt Box', 'Food Can', 'Shampoo', 'Shoe', 'Shower Gel', 'Spray', 'Tape Measure',
+                  'Taz Mascot', 'Tennis Ball', 'Toilet Paper', 'Toy Horn', 'Plastic Train', 'Twisted Plastic',
+                  'Wooden Wardrobe', 'Wood Box', 'Yellow Sponge']
+
+EXCLUDED_METRICS = [
+    "AdjustedRand"
+]
 
 
 def open_pickle(path):
@@ -74,15 +91,8 @@ def log_info(index_to_class: np.ndarray, results: dict):
         print("\n")
 
 
-def get_distance_mat(x: np.ndarray, predictions: np.ndarray):
-    embeddings = list()
-    cluster_ids = np.unique(predictions)
-    for cls_id in cluster_ids:
-        cls_idx = np.argwhere(predictions == cls_id)[:, 0]
-        emb = np.mean(x[cls_idx], 0)
-        embeddings.append(emb)
-
-    return np.stack(embeddings)
+def get_distance_mat(centroids: np.ndarray):
+    return np.linalg.norm(centroids[np.newaxis, ...] - centroids[:, np.newaxis], axis=-1, keepdims=True)[..., 0]
 
 
 def analyze_clustering_results(results_folder: str):
@@ -109,7 +119,6 @@ def analyze_clustering_results(results_folder: str):
     # generate data
     fig, axs = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
     for file_no, results_file in enumerate(sorted(dirs)):
-        print("Processing: ", results_file)
         algorithm_name = results_file.split("/")[-1].rsplit(".")[0]
         algos_names.append(algorithm_name)
 
@@ -117,6 +126,30 @@ def analyze_clustering_results(results_folder: str):
         data = open_pickle(results_file)
         if data is None:
             continue
+
+        # 0. plot centroids if available
+        if 'centroids_tsne' in data.keys():
+            print("Processing: ", results_file)
+            cm = get_distance_mat(data["centroids_tsne"])
+            cm /= float(cm.max())
+            plt.figure(figsize=(15, 15))
+            if "put" in results_file:
+                cls = PUT_CLASSES
+            elif "biotac2" in results_file:
+                cls = BIOTAC_CLASSES
+            else:
+                cls = TOUCHING_CLASSES
+            cls = np.asarray(cls)
+            mask = np.triu(np.ones_like(cm, dtype=bool))
+            aa = sns.heatmap(cm, mask=mask, annot=True, fmt='.2f', cmap="Spectral", vmin=cm.min(), vmax=cm.max(),
+                             xticklabels=cls, yticklabels=cls, cbar_kws={"shrink": .5})
+            aa.set_xticklabels(aa.get_xticklabels(), rotation=45, horizontalalignment='right')
+            plt.show()
+
+            closest_friends = np.asarray([np.argsort(cm[i, :])[1:4] for i in range(cm.shape[0])])
+            friends_map = np.column_stack([cls, cls[closest_friends]])
+            for e in friends_map:
+                print(f"{e[0]}: {e[1:]}")
 
         # 1. create a scatter plot of supervised labels in unsupervised clusters
         # pick the same 2D TSNE for all plots (assume all results are about the same dataset)
@@ -140,12 +173,17 @@ def analyze_clustering_results(results_folder: str):
         #         log_info(index_to_class, data)
 
         # 3. gather metrics for a bar plot (filter some of them)
-        num_metrics = len(data["metrics"])
+        metrics = list()
+        for i in range(len(data["metrics"])):
+            if data["metrics"][i][0] not in EXCLUDED_METRICS:
+                metrics.append(data["metrics"][i])
+
+        num_metrics = len(metrics)
         bar_width = 1 / num_metrics - 0.05
         bars_width = num_metrics * bar_width
         bar_heights, bar_positions, bar_widths, bar_names = list(), list(), list(), list()
 
-        for i, metric in enumerate(data["metrics"]):
+        for i, metric in enumerate(metrics):
             m_name, m_value = metric
             bar_names.append(m_name)
             bar_heights.append(m_value)

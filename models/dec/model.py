@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from sklearn.cluster import KMeans
 
+from models import autoencoders
+
 
 class ClusteringModel(nn.Module):
 
@@ -33,3 +35,13 @@ class ClusteringModel(nn.Module):
         method.fit_predict(embeddings)
         initial_centroids = method.cluster_centers_
         return nn.Parameter(torch.Tensor(initial_centroids))
+
+    def setup(self, args):
+        backprop_config = autoencoders.ops.BackpropConfig()
+        backprop_config.optimizer = torch.optim.AdamW
+        backprop_config.model = self
+        backprop_config.lr = args.lr
+        backprop_config.eta_min = args.eta_min
+        backprop_config.epochs = args.epochs_dec
+        backprop_config.weight_decay = args.weight_decay
+        return autoencoders.ops.backprop_init(backprop_config)

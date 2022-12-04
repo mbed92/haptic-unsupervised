@@ -2,7 +2,6 @@ import copy
 import os
 from argparse import Namespace
 
-import seaborn as sns
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -13,65 +12,15 @@ from models import autoencoders
 from models.autoencoders.conv import TimeSeriesConvAutoencoderConfig, TimeSeriesConvAutoencoder
 from models.autoencoders.fc import FullyConnectedAutoencoder, FullyConnectedAutoencoderConfig
 from utils.sklearn_benchmark import RANDOM_SEED
-from .clustering_dl import clustering_dl
-
-sns.set()
 
 
-def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
-    train_dl = DataLoader(ds, batch_size=args.batch_size_ae, shuffle=True)
-    data_shape = train_dl.dataset.signals.shape[-2:]
-
-    # set up a model (find the best config)
-    nn_params = TimeSeriesConvAutoencoderConfig()
-    nn_params.data_shape = data_shape
-    nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.GELU()
-    autoencoder = TimeSeriesConvAutoencoder(nn_params)
-    device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
-
-    # train the main autoencoder
-    backprop_config = autoencoders.ops.BackpropConfig()
-    backprop_config.model = autoencoder
-    backprop_config.optimizer = torch.optim.AdamW
-    backprop_config.lr = args.lr
-    backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs_ae
-    backprop_config.weight_decay = args.weight_decay
-
-    return train_autoencoder(train_dl, log_dir, args, backprop_config, autoencoder, device)
-
-
-def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
-    train_dl = DataLoader(total_dataset, batch_size=args.batch_size_ae, shuffle=True)
-    data_shape = train_dl.dataset.signals.shape[-1]
-
-    # set up a model (find the best config)
-    nn_params = FullyConnectedAutoencoderConfig()
-    nn_params.data_shape = [data_shape]
-    nn_params.kernel = args.kernel_size
-    nn_params.activation = nn.GELU()
-    nn_params.latent_size = args.latent_size
-    autoencoder = FullyConnectedAutoencoder(nn_params)
-    device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
-
-    # train the main autoencoder
-    backprop_config = autoencoders.ops.BackpropConfig()
-    backprop_config.model = autoencoder
-    backprop_config.optimizer = torch.optim.AdamW
-    backprop_config.lr = args.lr
-    backprop_config.eta_min = args.eta_min
-    backprop_config.epochs = args.epochs_ae
-    backprop_config.weight_decay = args.weight_decay
-
-    return train_autoencoder(train_dl, log_dir, args, backprop_config, autoencoder, device)
-
-
-def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config, autoencoder, device):
+def _train_autoencoder(total_dataset: DataLoader, log_dir, args, autoencoder, device):
+    torch.manual_seed(RANDOM_SEED)
     best_loss = 9999.9
     best_model = None
+
     with SummaryWriter(log_dir=os.path.join(log_dir, 'full')) as writer:
-        optimizer, scheduler = autoencoders.ops.backprop_init(backprop_config)
+        optimizer, scheduler = autoencoder.setup(args)
 
         for epoch in range(args.epochs_ae):
             train_loss, exemplary_sample = autoencoders.ops.train_epoch(autoencoder, total_dataset, optimizer, device)
@@ -94,19 +43,30 @@ def train_autoencoder(total_dataset: DataLoader, log_dir, args, backprop_config,
     return best_model
 
 
-def clustering_dl_latent(total_dataset: Dataset, log_dir: str, args: Namespace, expected_num_clusters: int):
-    torch.manual_seed(RANDOM_SEED)
+def train_time_series_autoencoder(ds: Dataset, log_dir: str, args: Namespace):
+    train_dl = DataLoader(ds, batch_size=args.batch_size_ae, shuffle=True)
+    data_shape = train_dl.dataset.signals.shape[-2:]
 
-    # prepare the autoencoder (should work on data with shapes NxC or NxCxL)
-    shape = total_dataset.signals.shape
+    nn_params = TimeSeriesConvAutoencoderConfig()
+    nn_params.data_shape = data_shape
+    nn_params.kernel = args.kernel_size
+    nn_params.activation = nn.GELU()
+    autoencoder = TimeSeriesConvAutoencoder(nn_params)
+    device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
 
-    # train & save or load the autoencoder
-    if args.ae_load_path == "":
-        if len(shape) == 2:
-            autoencoder = train_fc_autoencoder(total_dataset, log_dir, args)
-        else:
-            autoencoder = train_time_series_autoencoder(total_dataset, log_dir, args)
-    else:
-        autoencoder = torch.load(args.ae_load_path)
+    return _train_autoencoder(train_dl, log_dir, args, autoencoder, device)
 
-    clustering_dl(total_dataset, log_dir, args, expected_num_clusters, autoencoder)
+
+def train_fc_autoencoder(total_dataset: Dataset, log_dir: str, args: Namespace):
+    train_dl = DataLoader(total_dataset, batch_size=args.batch_size_ae, shuffle=True)
+    data_shape = train_dl.dataset.signals.shape[-1]
+
+    nn_params = FullyConnectedAutoencoderConfig()
+    nn_params.data_shape = [data_shape]
+    nn_params.kernel = args.kernel_size
+    nn_params.activation = nn.GELU()
+    nn_params.latent_size = args.latent_size
+    autoencoder = FullyConnectedAutoencoder(nn_params)
+    device = autoencoders.ops.hardware_upload(autoencoder, nn_params.data_shape)
+
+    return _train_autoencoder(train_dl, log_dir, args, autoencoder, device)
