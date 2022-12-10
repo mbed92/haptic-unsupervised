@@ -17,12 +17,14 @@ from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 
 from models import dec, autoencoders
+from utils.clustering import distribution_hardening
 from utils.sklearn_benchmark import RANDOM_SEED, SCIKIT_LEARN_PARAMS
 
 sns.set()
 
 
 def _get_embeddings(autoencoder, dataset, device):
+    autoencoder.train(False)
     with torch.no_grad():
         autoencoder = autoencoder.cpu()
         x = torch.Tensor(dataset).cpu()
@@ -73,7 +75,7 @@ def clustering_dl(total_dataset: Dataset,
 
     # train the clust_model
     with SummaryWriter(log_dir=log_dir) as writer:
-        best_loss = inf
+        best_metric = inf
         best_epoch = 0
         best_model = None
         best_metrics = None
@@ -81,10 +83,21 @@ def clustering_dl(total_dataset: Dataset,
         # train epoch
         for epoch in range(args.epochs_dec):
 
+            # update the target distribution
+            if epoch % 100 == 0:
+                clust_model.cpu()
+                clust_model.train(False)
+                soft_assignments = clust_model.t_student(torch.Tensor(inputs)).detach()
+                target_distribution = distribution_hardening(soft_assignments)
+                clustering_dataloader.dataset.p_target = target_distribution.numpy().astype(np.float64)
+                clust_model.train(True)
+                clust_model.to(device)
+
             # clustering assignment
             loss, metrics = dec.ops.train_epoch(clust_model, clustering_dataloader, main_optimizer, device)
 
-            if None not in [autoencoder, ae_scheduler, ae_optimizer, signals_dataloader]:
+            # fine-tune autoencoder each 10 epoch
+            if None not in [autoencoder, ae_scheduler, ae_optimizer, signals_dataloader] and epoch % 5 == 0:
                 ae_loss, _ = autoencoders.ops.train_epoch(autoencoder, signals_dataloader, ae_optimizer, device)
                 writer.add_scalar(f"RECONSTRUCTION/train/{ae_loss.name}", ae_loss.get(), epoch)
                 ae_scheduler.step()
@@ -104,16 +117,25 @@ def clustering_dl(total_dataset: Dataset,
             main_scheduler.step()
 
             # save the best model and log metrics
-            current_loss = loss.get()
-            if current_loss < best_loss:
+            performance_metric = None
+            for m in metrics:
+                if "accuracy" in m.name.lower():
+                    performance_metric = -m.get()
+            if performance_metric is None:
+                performance_metric = loss.get()
+
+            if performance_metric < best_metric:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model.pt'))
                 best_model = copy.deepcopy(clust_model)
-                best_loss = current_loss
+                best_metric = performance_metric
                 best_epoch = epoch
                 best_metrics = [(m.name, m.get()) for m in metrics]
                 [print(f"{m.name} {m.get()}") for m in metrics]
 
-            print(f"Epoch: {epoch} / {args.epochs_dec}. Best loss: {best_loss} for epoch {best_epoch}")
+                if autoencoder is not None:
+                    torch.save(autoencoder, os.path.join(writer.log_dir, 'best_autoencoder.pt'))
+
+            print(f"Epoch: {epoch} / {args.epochs_dec}. Best metric: {best_metric} for epoch {best_epoch}")
 
     # verify the last model
     if best_model is not None:
@@ -142,7 +164,8 @@ def clustering_dl(total_dataset: Dataset,
                 "centroids_raw": centroids,
                 "y_supervised": y,
                 "y_unsupervised": y_pred,
-                "metrics": best_metrics
+                "metrics": best_metrics,
+                "embeddings": embeddings[:num_points]
             }, file_handler)
 
             # visualize

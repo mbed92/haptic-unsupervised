@@ -26,7 +26,8 @@ BIOTAC_CLASSES = ['Aluminum', 'Apple', 'Aquarius Can', 'Plastic Budha', 'Bunny M
                   'Wooden Wardrobe', 'Wood Box', 'Yellow Sponge']
 
 EXCLUDED_METRICS = [
-    "AdjustedRand"
+    "AdjustedRand",
+    "Silhouette"
 ]
 
 
@@ -127,29 +128,29 @@ def analyze_clustering_results(results_folder: str):
         if data is None:
             continue
 
-        # 0. plot centroids if available
-        if 'centroids_tsne' in data.keys():
-            print("Processing: ", results_file)
-            cm = get_distance_mat(data["centroids_tsne"])
-            cm /= float(cm.max())
-            plt.figure(figsize=(15, 15))
-            if "put" in results_file:
-                cls = PUT_CLASSES
-            elif "biotac2" in results_file:
-                cls = BIOTAC_CLASSES
-            else:
-                cls = TOUCHING_CLASSES
-            cls = np.asarray(cls)
-            mask = np.triu(np.ones_like(cm, dtype=bool))
-            aa = sns.heatmap(cm, mask=mask, annot=True, fmt='.2f', cmap="Spectral", vmin=cm.min(), vmax=cm.max(),
-                             xticklabels=cls, yticklabels=cls, cbar_kws={"shrink": .5})
-            aa.set_xticklabels(aa.get_xticklabels(), rotation=45, horizontalalignment='right')
-            plt.show()
-
-            closest_friends = np.asarray([np.argsort(cm[i, :])[1:4] for i in range(cm.shape[0])])
-            friends_map = np.column_stack([cls, cls[closest_friends]])
-            for e in friends_map:
-                print(f"{e[0]}: {e[1:]}")
+        # # 0. plot centroids if available
+        # if 'centroids_tsne' in data.keys():
+        #     print("Processing: ", results_file)
+        #     cm = get_distance_mat(data["centroids_tsne"])
+        #     cm /= float(cm.max())
+        #     plt.figure(figsize=(15, 15))
+        #     if "put" in results_file:
+        #         cls = PUT_CLASSES
+        #     elif "biotac2" in results_file:
+        #         cls = BIOTAC_CLASSES
+        #     else:
+        #         cls = TOUCHING_CLASSES
+        #     cls = np.asarray(cls)
+        #     mask = np.triu(np.ones_like(cm, dtype=bool))
+        #     aa = sns.heatmap(cm, mask=mask, annot=True, fmt='.2f', cmap="Spectral", vmin=cm.min(), vmax=cm.max(),
+        #                      xticklabels=cls, yticklabels=cls, cbar_kws={"shrink": .5})
+        #     aa.set_xticklabels(aa.get_xticklabels(), rotation=45, horizontalalignment='right')
+        #     plt.show()
+        #
+        #     closest_friends = np.asarray([np.argsort(cm[i, :])[1:4] for i in range(cm.shape[0])])
+        #     friends_map = np.column_stack([cls, cls[closest_friends]])
+        #     for e in friends_map:
+        #         print(f"{e[0]}: {e[1:]}")
 
         # 1. create a scatter plot of supervised labels in unsupervised clusters
         # pick the same 2D TSNE for all plots (assume all results are about the same dataset)
@@ -190,6 +191,11 @@ def analyze_clustering_results(results_folder: str):
             bar_widths.append(bar_width)
             bar_positions.append(file_no - 0.5 * bars_width + i * bar_width)
 
+        if "Agglomerative" in algorithm_name:
+            algorithm_name = "Agglomerative"
+        if "Spectral" in algorithm_name:
+            algorithm_name = "Spectral"
+
         bar_labels.append(algorithm_name)
         bar_multi_names.append(bar_names)
         bar_multi_heights.append(bar_heights)
@@ -207,7 +213,7 @@ def analyze_clustering_results(results_folder: str):
     plt.close(fig)
 
     # close previous figure and create a new with a bar plot
-    fig, ax = plt.subplots(constrained_layout=True, figsize=SCIKIT_LEARN_PARAMS["figsize"])
+    fig, ax = plt.subplots(constrained_layout=True, figsize=(10, 5))
     labels = bar_multi_names[0]
     for i, name in enumerate(labels):
         series_heights = [bmh[i] for bmh in bar_multi_heights]

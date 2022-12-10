@@ -11,6 +11,7 @@ class MockDataset(Dataset):
 
         self.num_classes = len(np.unique(self.labels))
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
+        self.p_target = None
 
         if standarize:
             self._standarize()
@@ -22,7 +23,9 @@ class MockDataset(Dataset):
         return len(self.signals)
 
     def __getitem__(self, index):
-        return self.signals[index], self.labels[index]
+        if self.p_target is None:
+            return self.signals[index], self.labels[index]
+        return self.signals[index], self.labels[index], self.p_target[index]
 
     def __add__(self, other_biotac):
         raise NotImplementedError("Dataset is only for testing purposes.")

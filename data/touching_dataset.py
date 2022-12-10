@@ -41,6 +41,7 @@ class TouchingDataset(Dataset):
         self.mean, self.std = np.mean(self.signals, (0, 2), keepdims=True), np.std(self.signals, (0, 2), keepdims=True)
         self.signal_start = signal_start
         self.signal_length = signal_length
+        self.p_target = None
 
         if standarize:
             self._standarize()
@@ -55,7 +56,9 @@ class TouchingDataset(Dataset):
         return 0
 
     def __getitem__(self, index):
-        return self.signals[index], self.labels[index]
+        if self.p_target is None:
+            return self.signals[index], self.labels[index]
+        return self.signals[index], self.labels[index], self.p_target[index]
 
     def __add__(self, other_touching):
         self.mean = (self.mean + other_touching.mean) / 2.0

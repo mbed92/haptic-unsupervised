@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 
 import torch
@@ -38,6 +39,24 @@ def main(args):
         #   "metrics": [K]
         # }
         experiments.analyze_clustering_results(base_dir)
+
+    elif args.experiment == "silhouette":
+
+        if args.ae_load_path == "":
+            embeddings = total_dataset.signals
+
+        else:
+            autoencoder = torch.load(args.ae_load_path).cpu().eval()
+            embeddings = autoencoder.encoder(torch.Tensor(total_dataset.signals)).detach().numpy()
+
+        if args.dec_load_folder == "":
+            dec_models = None
+        else:
+            models_paths = os.path.join(args.dec_load_folder, "**", "best_clustering_model.pt")
+            dec_models = sorted(glob.glob(models_paths, recursive=True))
+
+        experiments.silhouette(embeddings, dec_models=dec_models)
+
     else:
         log_dir = utils_haptr.log.logdir_name(base_dir, args.experiment)
         utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
@@ -69,23 +88,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="put",
-                        choices=['biotac2', 'put', 'touching', 'mock'])
+    parser.add_argument('--dataset', type=str, default="touching",
+                        choices=['biotac2', 'put', 'touching'])
     parser.add_argument('--experiment', type=str, default="dl_latent",
-                        choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze'])
+                        choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze', 'silhouette'])
 
     # deep learning (common for all types of experiments)
     parser.add_argument('--overwrite-num-clusters', type=int, default=-1)
-    parser.add_argument('--epochs-ae', type=int, default=100)
-    parser.add_argument('--epochs-dec', type=int, default=200)
-    parser.add_argument('--batch-size', type=int, default=3)
+    parser.add_argument('--epochs-ae', type=int, default=500)
+    parser.add_argument('--epochs-dec', type=int, default=500)
+    parser.add_argument('--batch-size', type=int, default=16)
     parser.add_argument('--batch-size-ae', type=int, default=256)
     parser.add_argument('--kernel-size', type=int, default=11)
-    parser.add_argument('--latent-size', type=int, default=10)
+    parser.add_argument('--latent-size', type=int, default=25, help="Works only for 1D data.")
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--weight-decay', type=float, default=1e-4)
-    parser.add_argument('--eta-min', type=float, default=1e-4)
+    parser.add_argument('--eta-min', type=float, default=1e-5)
     parser.add_argument('--ae-load-path', type=str, default="")
+    parser.add_argument('--dec-load-folder', type=str, default="")
 
     args, _ = parser.parse_known_args()
     main(args)

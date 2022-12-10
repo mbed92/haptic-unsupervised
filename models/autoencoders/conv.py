@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 
 from models import autoencoders
+from submodules.haptic_transformer.models.signal_encoder import PositionalEncoding
 
 
 class TimeSeriesConvAutoencoderConfig:
@@ -60,9 +61,16 @@ class TimeSeriesConvAutoencoder(nn.Module):
             change_channels(128, cfg.data_shape[0])
         )
 
+        self.positional_encoding = PositionalEncoding(1)
+        self.attn = nn.MultiheadAttention(1, 1, 0.2, batch_first=True)
+
     def encoder(self, inputs):
         z = self.encoder_layers(inputs)
-        return torch.squeeze(z, 1)
+        z = self.positional_encoding(z)
+        z = torch.transpose(z, 1, 2)
+        z_attn, _ = self.attn(z, z, z)
+        z = z + z_attn
+        return torch.squeeze(z, -1)
 
     def decoder(self, inputs):
         inputs = torch.unsqueeze(inputs, 1)
