@@ -14,7 +14,6 @@ torch.manual_seed(42)
 
 
 def main(args):
-    # Config
     config_file = os.path.join(os.getcwd(), 'config', f"{args.dataset}.yaml")
     with open(config_file) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
@@ -88,9 +87,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # config
-    parser.add_argument('--dataset', type=str, default="touching",
+    parser.add_argument('--dataset', type=str, default="",
                         choices=['biotac2', 'put', 'touching'])
-    parser.add_argument('--experiment', type=str, default="dl_latent",
+    parser.add_argument('--experiment', type=str, default="",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze', 'silhouette'])
 
     # deep learning (common for all types of experiments)

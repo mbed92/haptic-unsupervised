@@ -1,82 +1,73 @@
-import os
-import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import yaml
-from matplotlib import ticker
-from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.ndimage.filters import gaussian_filter1d
-from data import helpers
-from experiments.analyze_clustering_results import PUT_CLASSES
-from utils.clustering import distribution_hardening
-from utils.metrics import clustering_accuracy
 
-sns.set()
+# Set seaborn style and context
+sns.set(style="white")
+sns.set_context("talk")
 
-config_file = os.path.join(os.getcwd(), 'config', "put.yaml")
-model_file = os.path.join(os.getcwd(), 'results', "put", "dl_raw", "Nov09_17-35-15_mbed", "best_clustering_model.pt")
+# Sample data (replace with your actual data)
+algorithms = ['DEC', 'DEC (raw)', 'Agglomerative', 'BIRCH', 'GaussianMixture', 'KMeans', 'Spectral', 'Ward']
+metrics = ['MutualInfo', 'Purity', 'ClusteringAccuracy']
 
-with open(config_file) as file:
-    config = yaml.load(file, Loader=yaml.FullLoader)
+# BioTac2 results
+means = np.array([
+    [0.921, 0.846, 0.781],
+    [0.915, 0.824, 0.770],
+    [0.099, 0.062, 0.056],
+    [0.315, 0.163, 0.150],
+    [0.257, 0.144, 0.130],
+    [0.319, 0.172, 0.153],
+    [0.323, 0.187, 0.156],
+    [0.333, 0.180, 0.161]
+])
+std_devs = np.array([
+    [0.002, 0.005, 0.003],
+    [0.003, 0.011, 0.003],
+    [0.025, 0.013, 0.012],
+    [0.004, 0.005, 0.007],
+    [0.086, 0.032, 0.027],
+    [0.002, 0.006, 0.004],
+    [0.001, 0.000, 0.001],
+    [0.003, 0.003, 0.001]
+])
 
-total_dataset = helpers.load_dataset(config)
-model = torch.load(model_file)
-model.eval()
-model.cpu()
+# # Touching results
+# means = np.array([
+#     [0.701, 0.659, 0.596],
+#     [0.685, 0.652, 0.572],
+#     [0.137, 0.215, 0.212],
+#     [0.335, 0.316, 0.292],
+#     [0.340, 0.314, 0.278],
+#     [0.314, 0.289, 0.265],
+#     [0.291, 0.347, 0.306],
+#     [0.313, 0.280, 0.259]
+# ])
+# std_devs = np.array([
+#     [0.004, 0.006, 0.001],
+#     [0.008, 0.002, 0.002],
+#     [0.000, 0.000, 0.000],
+#     [0.011, 0.013, 0.013],
+#     [0.017, 0.023, 0.013],
+#     [0.021, 0.012, 0.013],
+#     [0.014, 0.005, 0.004],
+#     [0.000, 0.000, 0.000]
+# ])
 
-num_samples = total_dataset.signals.shape[-1]
-num_modalities = total_dataset.signals.shape[-2]
-num_centroids = total_dataset.num_classes
+x = np.arange(len(algorithms))
+bar_width = 0.2
 
-dataloader = DataLoader(total_dataset)
+plt.figure(figsize=(20, 5))  # Adjust the figsize
 
-centroids = model.centroids.detach().cpu().numpy()
-centroids = centroids.reshape([-1, num_modalities, num_samples])
-centroids = (centroids * total_dataset.std) + total_dataset.mean
-centroids = centroids.reshape([num_centroids, -1])
+for i, metric in enumerate(metrics):
+    plt.bar(x + i * bar_width, means[:, i], yerr=std_devs[:, i], label=metric, width=bar_width)
 
-n_cols = 2
-n_rows = np.ceil(num_centroids / n_cols).astype(np.int)
-fig, axes = plt.subplots(n_rows, n_cols, constrained_layout=True, figsize=(n_cols * 10, n_rows * 10))
-axes = axes.reshape(-1)
-
-for CLASS in range(0, total_dataset.num_classes):
-
-    ax = axes[CLASS]
-    chosen_centroid = centroids[CLASS]
-    t = np.linspace(0, 1, chosen_centroid.shape[0])
-
-    y_true_total = list()
-    y_hat_total = list()
-    for i, batch in enumerate(dataloader):
-        x, y = batch
-
-        feed = x.reshape(1, -1)
-        pred = model(feed)
-        pred = distribution_hardening(pred)
-        y_hat = torch.argmax(pred, -1)
-
-        if y_hat == CLASS:
-            xx = (x[0] * total_dataset.std) + total_dataset.mean
-            xx = xx.numpy().transpose()
-            xx = xx.reshape(-1)
-            sns.lineplot(x=t, y=xx, ax=ax, color='blue', linewidth=0.5, alpha=0.2)
-            y_true_total.append(y.numpy()[0])
-            y_hat_total.append(y_hat.numpy()[0])
-
-    class_names, class_count = np.unique(y_true_total, return_counts=True)
-    [print(PUT_CLASSES[cn], cc) for cn, cc in zip(class_names, class_count)]
-    print(clustering_accuracy(np.asarray(y_true_total), np.asarray(y_hat_total)))
-    print("=========")
-
-    chosen_centroid = gaussian_filter1d(chosen_centroid, sigma=2)
-    sns.lineplot(x=t, y=chosen_centroid, ax=ax, color='red', linewidth=3.0)
-
-    ax.yaxis.grid(False)  # Hide the horizontal gridlines
-    ax.xaxis.grid(True)  # Show the vertical gridlines
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1.0 / num_modalities))
-    ax.set_xlim([0, 1])
-    ax.set_ylim([-1300, 1300])
-
-plt.savefig("summary.png", dpi=fig.dpi)
+plt.xlabel('Algorithms')
+plt.ylabel('Scores')
+plt.title('Clustering Algorithm Performance (BioTac2)')
+plt.xticks(x + bar_width * (len(metrics) - 1) / 2, algorithms)
+plt.yticks(np.arange(0, 1.1, 0.1))  # Set y-axis grid lines at intervals of 0.1
+plt.legend()
+plt.tight_layout()  # Apply tight layout
+plt.grid(True)
+plt.show()

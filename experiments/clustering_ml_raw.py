@@ -18,13 +18,11 @@ from utils.sklearn_benchmark import RANDOM_SEED, SCIKIT_LEARN_PARAMS, get_sklear
 sns.set()
 
 
+# https://scikit-learn.org/stable/auto_examples/cluster/plot_cluster_comparison.html
 def calculate_connectivity(x, params):
-    # connectivity matrix for structured Ward
+    # connectivity matrix for structured Ward and Agglomerative clustering
     connectivity = kneighbors_graph(x, n_neighbors=params["n_neighbors"])
-
-    # make connectivity symmetric
     connectivity = 0.5 * (connectivity + connectivity.T)
-
     return connectivity
 
 

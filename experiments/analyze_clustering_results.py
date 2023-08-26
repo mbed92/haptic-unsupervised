@@ -4,6 +4,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from matplotlib.ticker import MultipleLocator
 from sklearn.metrics.cluster import contingency_matrix
@@ -101,7 +102,6 @@ def analyze_clustering_results(results_folder: str):
     dirs = glob.glob(f, recursive=True)
 
     # TSNE plots
-    x_tsne, y_tsne = None, None
     n_rows = SCIKIT_LEARN_PARAMS["n_rows"]
     n_cols = np.ceil(len(dirs) / n_rows).astype(np.int)
 
@@ -128,29 +128,15 @@ def analyze_clustering_results(results_folder: str):
         if data is None:
             continue
 
-        # # 0. plot centroids if available
-        # if 'centroids_tsne' in data.keys():
-        #     print("Processing: ", results_file)
-        #     cm = get_distance_mat(data["centroids_tsne"])
-        #     cm /= float(cm.max())
-        #     plt.figure(figsize=(15, 15))
-        #     if "put" in results_file:
-        #         cls = PUT_CLASSES
-        #     elif "biotac2" in results_file:
-        #         cls = BIOTAC_CLASSES
-        #     else:
-        #         cls = TOUCHING_CLASSES
-        #     cls = np.asarray(cls)
-        #     mask = np.triu(np.ones_like(cm, dtype=bool))
-        #     aa = sns.heatmap(cm, mask=mask, annot=True, fmt='.2f', cmap="Spectral", vmin=cm.min(), vmax=cm.max(),
-        #                      xticklabels=cls, yticklabels=cls, cbar_kws={"shrink": .5})
-        #     aa.set_xticklabels(aa.get_xticklabels(), rotation=45, horizontalalignment='right')
-        #     plt.show()
-        #
-        #     closest_friends = np.asarray([np.argsort(cm[i, :])[1:4] for i in range(cm.shape[0])])
-        #     friends_map = np.column_stack([cls, cls[closest_friends]])
-        #     for e in friends_map:
-        #         print(f"{e[0]}: {e[1:]}")
+        # choose classes for the dataset
+        if "put" in results_folder.lower():
+            index_to_class = PUT_CLASSES
+        elif "touching" in results_folder.lower():
+            index_to_class = TOUCHING_CLASSES
+        elif "biotac" in results_folder.lower():
+            index_to_class = BIOTAC_CLASSES
+        else:
+            index_to_class = None
 
         # 1. create a scatter plot of supervised labels in unsupervised clusters
         # pick the same 2D TSNE for all plots (assume all results are about the same dataset)
@@ -162,18 +148,7 @@ def analyze_clustering_results(results_folder: str):
             plot_tnse("Supervised classes", data["x_tsne"][:, 0], data["x_tsne"][:, 1],
                       data["y_supervised"], axs.reshape(-1)[-1])
 
-        # 2. TODO print clustering info: cluster no | num supervised classes | list supervised classes
-        # prepare class-to-index mapping
-        # index_to_class = None
-        # if hasattr(dataset, "meta") and dataset.meta.shape[0] == data["y_supervised"].shape[0]:
-        #     index_to_class = dataset.meta[:, 0]
-        #
-        # log_summary = os.path.join(results_folder, f"{algorithm_name}_summary.txt")
-        # with open(log_summary, 'w') as f:
-        #     with redirect_stdout(f):
-        #         log_info(index_to_class, data)
-
-        # 3. gather metrics for a bar plot (filter some of them)
+        # 2. gather metrics for a bar plot (filter some of them)
         metrics = list()
         for i in range(len(data["metrics"])):
             if data["metrics"][i][0] not in EXCLUDED_METRICS:
@@ -202,10 +177,15 @@ def analyze_clustering_results(results_folder: str):
         bar_multi_widths.append(bar_widths)
         bar_multi_positions.append(bar_positions)
 
-        # 4. Contingency matrix
+        # 3. Contingency matrix
         cm = contingency_matrix(data["y_unsupervised"], data["y_supervised"])
         cm_cond = cm / cm.sum(axis=0)
         cm_cond_list.append(cm_cond)
+
+        # save contingency matrix as csv using pandas
+        if index_to_class is not None:
+            df = pd.DataFrame(cm_cond, index=index_to_class)
+            df.to_csv(os.path.join(results_folder, f"{algorithm_name}_contingency_matrix.csv"))
 
     # save the TSNE picture
     log_picture = os.path.join(results_folder, "summary_tsne.png")
@@ -215,12 +195,19 @@ def analyze_clustering_results(results_folder: str):
     # close previous figure and create a new with a bar plot
     fig, ax = plt.subplots(constrained_layout=True, figsize=(10, 5))
     labels = bar_multi_names[0]
+
+    # save algos_names, labels, bar_multi_heights as csv using pandas
+    df = pd.DataFrame(bar_multi_heights, index=algos_names, columns=labels)
+    df.to_csv(os.path.join(results_folder, "summary_bar_plot.csv"))
+
+    # plot the bar plot
     for i, name in enumerate(labels):
         series_heights = [bmh[i] for bmh in bar_multi_heights]
         series_widths = [bmw[i] for bmw in bar_multi_widths]
         series_positions = [bmp[i] for bmp in bar_multi_positions]
         ax.bar(series_positions, series_heights, series_widths, label=name)
 
+    # set plot parameters
     ax.set_xlim(-0.5, 7.5)
     ax.set_ylim(0.0, 1.0)
     ax.xaxis.set_major_locator(MultipleLocator(0.1))
@@ -234,3 +221,5 @@ def analyze_clustering_results(results_folder: str):
     log_picture = os.path.join(results_folder, "summary_bar_plot.png")
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)
+
+    print("Done with bar plot.")
