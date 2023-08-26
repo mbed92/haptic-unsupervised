@@ -24,7 +24,7 @@ def main(args):
 
     # Dataset
     total_dataset = helpers.load_dataset(config)
-    base_dir = os.path.join(os.getcwd(), 'results', args.dataset)
+    base_dir = os.path.join(os.getcwd(), 'results/trial1', args.dataset)
     print(f"Results: {base_dir}")
 
     # Run a specified experiment
