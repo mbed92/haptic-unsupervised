@@ -6,16 +6,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.cluster import KMeans
+from sklearn.manifold import TSNE
 from sklearn.metrics import silhouette_samples, silhouette_score
 
 
-def silhouette(emb, dec_models=None, max_num_clusters=11):
-    range_n_clusters = [i for i in range(2, max_num_clusters)]
+def silhouette(emb, dec_models=None):
     if dec_models is None:
         dec_models = list()
-    else:
-        assert len(dec_models) == len(range_n_clusters)
 
+    range_n_clusters = [i for i in range(2, len(dec_models) + 2)]
     for k, n_clusters in enumerate(range_n_clusters):
         # Create a subplot with 1 row and 2 columns
         fig, (ax1, ax2) = plt.subplots(1, 2)
@@ -95,14 +94,18 @@ def silhouette(emb, dec_models=None, max_num_clusters=11):
 
         # 2nd Plot showing the actual clusters formed
         colors = cm.nipy_spectral(cluster_labels.astype(float) / n_clusters)
+
+        tsne = TSNE()
+        n_samples = len(emb)
+        x = tsne.fit_transform(np.concatenate([emb, centers]))
         ax2.scatter(
-            emb[:, 0], emb[:, 1], marker=".", s=30, lw=0, alpha=0.7, c=colors, edgecolor="k"
+            x[:n_samples, 0], x[:n_samples, 1], marker=".", s=30, lw=0, alpha=0.7, c=colors, edgecolor="k"
         )
 
         # Draw white circles at cluster centers
         ax2.scatter(
-            centers[:, 0],
-            centers[:, 1],
+            centers[n_samples:, 0],
+            centers[n_samples:, 1],
             marker="o",
             c="white",
             alpha=1,
@@ -110,10 +113,10 @@ def silhouette(emb, dec_models=None, max_num_clusters=11):
             edgecolor="k",
         )
 
-        for i, c in enumerate(centers):
+        for i, c in enumerate(centers[n_samples:]):
             ax2.scatter(c[0], c[1], marker="$%d$" % i, alpha=1, s=50, edgecolor="k")
 
-        ax2.set_title("The visualization of the clustered data.")
+        ax2.set_title(f"Silhouette score: {silhouette_avg}")
         ax2.set_xlabel("Feature space for the 1st feature")
         ax2.set_ylabel("Feature space for the 2nd feature")
 
@@ -124,4 +127,4 @@ def silhouette(emb, dec_models=None, max_num_clusters=11):
             fontweight="bold",
         )
 
-    plt.show()
+        plt.savefig(f"silhouette_{n_clusters}", dpi=fig.dpi)

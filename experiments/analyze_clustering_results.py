@@ -234,15 +234,3 @@ def analyze_clustering_results(results_folder: str):
     log_picture = os.path.join(results_folder, "summary_bar_plot.png")
     plt.savefig(log_picture, dpi=fig.dpi)
     plt.close(fig)
-
-    # plot contingency matrices
-    size = [25, SCIKIT_LEARN_PARAMS["figsize"][1]]
-    fig, axes = plt.subplots(nrows=len(cm_cond_list), constrained_layout=True, figsize=size)
-    for i, cm in enumerate(cm_cond_list):
-        ax = axes.reshape(-1)[i]
-        ax.set_title(algos_names[i], fontsize=SCIKIT_LEARN_PARAMS["title_size"])
-        sns.heatmap(cm, annot=True, fmt='.2f', cmap="YlGnBu", vmin=0.0, vmax=1.0, ax=ax)
-
-    log_picture = os.path.join(results_folder, "contingency.png")
-    plt.savefig(log_picture, dpi=fig.dpi)
-    plt.close(fig)
