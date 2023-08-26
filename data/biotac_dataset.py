@@ -24,7 +24,7 @@ class BiotacDataset(Dataset):
             if label_name == "grasp":
                 self.labels = pickled[key][:, OUTCOME_IDX].astype(np.int32)
             elif label_name == "class":
-                self.labels = pickled[key][:, CLASS_NAME_IDX].astype(np.int32)
+                self.labels = pickled[key][:, CLASS_ID_IDX].astype(np.int32)
             elif label_name == "palm":
                 self.labels = pickled[key][:, PALM_ORIENTATION_IDX].astype(np.int32)
             else:
@@ -32,6 +32,7 @@ class BiotacDataset(Dataset):
 
         self.num_classes = len(np.unique(self.labels))
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
+        self.p_target = None
 
         if standarize:
             self._standarize()
@@ -43,7 +44,9 @@ class BiotacDataset(Dataset):
         return len(self.signals)
 
     def __getitem__(self, index):
-        return self.signals[index], self.labels[index]
+        if self.p_target is None:
+            return self.signals[index], self.labels[index]
+        return self.signals[index], self.labels[index], self.p_target[index]
 
     def __add__(self, other_biotac):
         self.mean = (self.mean + other_biotac.mean) / 2.0

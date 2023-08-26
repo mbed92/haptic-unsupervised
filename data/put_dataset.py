@@ -18,6 +18,7 @@ class HapticDataset(Dataset):
         self.num_classes = len(np.unique(self.labels))
         self.signal_start = signal_start
         self.signal_length = signal_length
+        self.p_target = None
 
         if standarize:
             self._standarize()
@@ -29,7 +30,9 @@ class HapticDataset(Dataset):
         return len(self.signals)
 
     def __getitem__(self, index):
-        return self.signals[index], self.labels[index]
+        if self.p_target is None:
+            return self.signals[index], self.labels[index]
+        return self.signals[index], self.labels[index], self.p_target[index]
 
     def __add__(self, other_haptic):
         self.mean = (self.mean + other_haptic.mean) / 2.0

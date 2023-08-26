@@ -41,9 +41,9 @@ def get_sklearn_clustering_algorithms(params, connectivity):
 
     return (
         ("KMeans", two_means),
-        ("SpectralClustering", spectral),
+        ("Spectral", spectral),
         ("Ward", ward),
-        ("AgglomerativeClustering", average_linkage),
+        ("Agglomerative", average_linkage),
         ("BIRCH", birch),
         ("GaussianMixture", gmm),
     )
