@@ -13,6 +13,7 @@ from utils.sklearn_benchmark import SCIKIT_LEARN_PARAMS
 
 sns.set_style(style="white")
 
+SLIP_CLASSES = ['None', 'Low', 'Medium', 'High']
 PUT_CLASSES = ['Art. grass', 'Rubber', 'Carpet', 'PVC', 'Ceramic', 'Foam', 'Sand', 'Rocks']
 TOUCHING_CLASSES = ['Soft Card.', 'Hard Card.', 'Rubber', 'Leather', 'Linen bag', 'Plastic', 'Steel', 'Sponge',
                     'Styro.', 'Plastic bag']
@@ -135,6 +136,8 @@ def analyze_clustering_results(results_folder: str):
             index_to_class = TOUCHING_CLASSES
         elif "biotac" in results_folder.lower():
             index_to_class = BIOTAC_CLASSES
+        elif "slip" in results_folder.lower():
+            index_to_class = SLIP_CLASSES
         else:
             index_to_class = None
 
@@ -185,7 +188,8 @@ def analyze_clustering_results(results_folder: str):
         # save contingency matrix as csv using pandas
         if index_to_class is not None:
             df = pd.DataFrame(cm_cond, index=index_to_class)
-            df.to_csv(os.path.join(results_folder, f"{algorithm_name}_contingency_matrix.csv"))
+            p = os.path.join(results_folder, f"{algorithm_name}_contingency_matrix.csv")
+            df.to_csv(p)
 
     # save the TSNE picture
     log_picture = os.path.join(results_folder, "summary_tsne.png")

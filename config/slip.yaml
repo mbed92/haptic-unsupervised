@@ -8,4 +8,4 @@ dataset_folder: "/home/mbed/Projects/datasets/slip"
 # dataset_sand_scenario_2.csv
 dataset_file: "dataset_sand_scenario_3.csv"
 label_key: "Slippage level" # Stuck, Slip, Slippage level
-num_clusters: 2
+num_clusters: 4
