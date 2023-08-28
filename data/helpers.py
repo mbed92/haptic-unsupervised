@@ -3,6 +3,7 @@ import os
 from .biotac_dataset import BiotacDataset
 from .mock_dataset import MockDataset
 from .put_dataset import HapticDataset
+from .slip_dataset import SlipDataset
 from .touching_dataset import TouchingDataset
 
 
@@ -57,6 +58,10 @@ def load_dataset(config):
         test_ds = BiotacDataset(data_path, "test", standarize=False, label_name=config['label_name'])
         total_dataset = train_ds + test_ds
         total_dataset._standarize()
+
+    elif ds_type == "slip":
+        data_path = os.path.join(config['dataset_folder'], config['dataset_file'])
+        total_dataset = SlipDataset(data_path, label_key=config['label_key'])
 
     elif ds_type == "mock":
         total_dataset = MockDataset()

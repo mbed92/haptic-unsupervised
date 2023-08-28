@@ -1,0 +1,11 @@
+dataset_type: "slip"
+dataset_folder: "/home/mbed/Projects/datasets/slip"
+# Available datasets:
+# dataset_dirt_scenario.csv
+# dataset_sand_scenario_3.csv
+# dataset_granite_scenario.csv
+# dataset_sand_scenario.csv
+# dataset_sand_scenario_2.csv
+dataset_file: "dataset_sand_scenario_3.csv"
+label_key: "Slippage level" # Stuck, Slip, Slippage level
+num_clusters: 2

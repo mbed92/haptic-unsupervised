@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     # config
     parser.add_argument('--dataset', type=str, default="",
-                        choices=['biotac2', 'put', 'touching'])
+                        choices=['biotac2', 'put', 'touching', 'slip'])
     parser.add_argument('--experiment', type=str, default="",
                         choices=['ml_raw', 'dl_raw', 'dl_latent', 'analyze', 'silhouette'])
 
