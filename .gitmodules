@@ -1,3 +1,0 @@
-[submodule "submodules/haptic_transformer"]
-	path = submodules/haptic_transformer
-	url = git@github.com:kolaszko/haptic_transformer.git

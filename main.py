@@ -6,7 +6,7 @@ import torch
 import yaml
 
 import experiments
-import submodules.haptic_transformer.utils as utils_haptr
+import utils
 from data import helpers
 from experiments.clustering_dl_latent import train_fc_autoencoder, train_time_series_autoencoder
 
@@ -57,8 +57,8 @@ def main(args):
         experiments.silhouette(embeddings, dec_models=dec_models)
 
     else:
-        log_dir = utils_haptr.log.logdir_name(base_dir, args.experiment)
-        utils_haptr.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
+        log_dir = utils.log.logdir_name(base_dir, args.experiment)
+        utils.log.save_dict(args.__dict__, os.path.join(log_dir, 'args.txt'))
 
         # Sci-kit Learn ML algorithms
         if args.experiment == "ml_raw":
