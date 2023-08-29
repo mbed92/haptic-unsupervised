@@ -9,7 +9,6 @@ import numpy as np
 import seaborn as sns
 import torch
 import torch.nn as nn
-from numpy import inf
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
@@ -75,7 +74,7 @@ def clustering_dl(total_dataset: Dataset,
 
     # train the clust_model
     with SummaryWriter(log_dir=log_dir) as writer:
-        best_metric = inf
+        best_metric = 0
         best_epoch = 0
         best_model = None
         best_metrics = None
@@ -116,15 +115,19 @@ def clustering_dl(total_dataset: Dataset,
             writer.flush()
             main_scheduler.step()
 
-            # save the best model and log metrics
+            # select the performance metric - accuracy or negative loss (must be growing)
             performance_metric = None
             for m in metrics:
                 if "accuracy" in m.name.lower():
-                    performance_metric = -m.get()
-            if performance_metric is None:
-                performance_metric = loss.get()
+                    performance_metric = m.get()
+                    break
 
-            if performance_metric < best_metric:
+            # if no accuracy metric is found, use the negative loss to select the best model
+            if performance_metric is None:
+                performance_metric = -loss.get()
+
+            # save the best model
+            if performance_metric is not None and performance_metric > best_metric:
                 torch.save(clust_model, os.path.join(writer.log_dir, 'best_clustering_model.pt'))
                 best_model = copy.deepcopy(clust_model)
                 best_metric = performance_metric
