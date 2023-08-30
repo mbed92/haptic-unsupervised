@@ -5,13 +5,13 @@ from torch.utils.data import Dataset
 
 class SlipDataset(Dataset):
 
-    def __init__(self, path, label_key, standarize=True):
+    def __init__(self, path, used_keys, chosen_label_key, standarize=True):
         # load CSV from path
         data = pd.read_csv(path, index_col=[0])
 
         # pick columns by names
-        self.signals = data.drop(label_key, axis=1).to_numpy()
-        self.labels = data[label_key].to_numpy()
+        self.signals = data[used_keys].to_numpy()
+        self.labels = data[chosen_label_key].to_numpy()
         self.mean, self.std = np.mean(self.signals, 0, keepdims=True), np.std(self.signals, 0, keepdims=True)
         self.p_target = None
 

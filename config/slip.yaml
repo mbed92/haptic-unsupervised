@@ -7,5 +7,24 @@ dataset_folder: "/home/mbed/Projects/datasets/slip"
 # dataset_sand_scenario.csv
 # dataset_sand_scenario_2.csv
 dataset_file: "dataset_sand_scenario_3.csv"
-label_key: "Slippage level" # Stuck, Slip, Slippage level
+available_keys: [ 'timestamp', 'frame_id',
+                  'rotation_w', 'rotation_x', 'rotation_y', 'rotation_z',
+                  'translation_x', 'translation_y', 'translation_z',
+                  'distance_travelled',
+                  'displacement_x', 'displacement_y', 'displacement_z',
+                  'velocity_x', 'velocity_y', 'velocity_z', 'velocity',
+                  'acceleration_x', 'acceleration_y', 'acceleration_z', 'acceleration',
+                  'front_left_wheel_velocity', 'front_right_wheel_velocity', 'rear_left_wheel_velocity',
+                  'rear_right_wheel_velocity', 'angular_velocity_x',
+                  'angular_velocity_y', 'angular_velocity_z',
+                  'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z',
+                  'pitch_deg', 'roll_deg', 'yaw_deg',
+                  'Slip', 'Stuck', 'Slippage level' ]
+
+used_keys: [ 'front_left_wheel_velocity', 'front_right_wheel_velocity',
+             'rear_left_wheel_velocity', 'rear_right_wheel_velocity',
+             'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z',
+             'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z' ]
+
+chosen_label_key: "Slippage level" # One of the available_label_keys
 num_clusters: 4

@@ -61,7 +61,9 @@ def load_dataset(config):
 
     elif ds_type == "slip":
         data_path = os.path.join(config['dataset_folder'], config['dataset_file'])
-        total_dataset = SlipDataset(data_path, label_key=config['label_key'])
+        total_dataset = SlipDataset(data_path,
+                                    used_keys=config['used_keys'],
+                                    chosen_label_key=config['chosen_label_key'])
 
     elif ds_type == "mock":
         total_dataset = MockDataset()
